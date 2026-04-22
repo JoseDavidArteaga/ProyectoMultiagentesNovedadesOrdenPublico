@@ -1,0 +1,21 @@
+# ─── LLM & Embeddings ────────────────────────────────────────────────────────
+openai>=1.30.0
+
+# ─── Vector Store ─────────────────────────────────────────────────────────────
+chromadb>=0.5.0
+faiss-cpu>=1.8.0          # alternativa a ChromaDB; usar solo uno
+
+# ─── Procesamiento de datos ───────────────────────────────────────────────────
+pandas>=2.2.0
+openpyxl>=3.1.0           # lectura de archivos .xlsx
+numpy>=1.26.0
+
+# ─── Normalización y limpieza ─────────────────────────────────────────────────
+python-dateutil>=2.9.0    # parsing de fechas en múltiples formatos
+thefuzz>=0.22.0           # Fuzzy Matching para nombres de municipios
+python-Levenshtein>=0.25.0  # acelera thefuzz
+
+# ─── Utilidades ───────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0      # carga de variables de entorno (.env)
+tqdm>=4.66.0              # barras de progreso
+pydantic>=2.7.0           # validación de schemas de datos
