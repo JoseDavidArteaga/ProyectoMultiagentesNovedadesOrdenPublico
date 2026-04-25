@@ -13,6 +13,18 @@ load_dotenv()  # carga .env si existe (entorno local)
 # ─── OpenAI ──────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
 
+# ─── Ollama local ────────────────────────────────────────────────────────────
+OLLAMA_BASE_URL: str = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_CHAT_MODEL: str = os.environ.get("OLLAMA_CHAT_MODEL", "llama3.1:8b")
+OLLAMA_TEMPERATURE: float = float(os.environ.get("OLLAMA_TEMPERATURE", "0.2"))
+
+# ─── Neo4j local ─────────────────────────────────────────────────────────────
+NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USERNAME: str = os.environ.get("NEO4J_USERNAME", "neo4j")
+NEO4J_PASSWORD: str = os.environ.get("NEO4J_PASSWORD", "")
+NEO4J_DATABASE: str = os.environ.get("NEO4J_DATABASE", "neo4j")
+NEO4J_MAX_RESULTS: int = int(os.environ.get("NEO4J_MAX_RESULTS", "20"))
+
 # Modelos
 EMBEDDING_MODEL: str = "text-embedding-3-large"
 GENERATOR_MODEL: str = "gpt-4.1"
@@ -36,6 +48,7 @@ FAITHFULNESS_THRESHOLD: float = 0.85   # umbral mínimo aceptable
 RAW_DATA_DIR: str = "data/raw"
 PROCESSED_DATA_DIR: str = "data/processed"
 PROCESSED_DATA_FILE: str = "data/processed/hechos_orden_publico_2024.csv"
+NEO4J_SEED_FILE: str = os.environ.get("NEO4J_SEED_FILE", "data/raw/vigia_cauca_neo4j.cypher")
 
 # ─── Municipios del Cauca (lista de referencia para Fuzzy Matching) ───────────
 MUNICIPIOS_CAUCA: list[str] = [
