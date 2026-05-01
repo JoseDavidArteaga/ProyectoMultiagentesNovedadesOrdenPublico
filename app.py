@@ -1,117 +1,441 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import streamlit as st
 
-from config import NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME, OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL
+from config import (
+    NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_URI,
+    NEO4J_USERNAME, OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL,
+)
 from src.local_chat import LocalGraphChat
 from src.neo4j_graph import Neo4jGraphClient
 from src.ollama_client import OllamaClient
 
+sys.path.insert(0, str(Path(__file__).parent))
 
-st.set_page_config(page_title="Vigia Cauca Chat", page_icon="💬", layout="wide")
+st.set_page_config(
+    page_title="Vigía Cauca · Sistema Multiagente",
+    page_icon="🛡️",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
+
+# ── CSS ───────────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+#MainMenu,
+footer,
+header[data-testid="stHeader"],
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"],
+section[data-testid="stSidebar"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+.nav-active {
+  color: var(--text) !important;
+  background: var(--s2) !important;
+  border-color: var(--border) !important;
+}
+/* Botón de reconexión ↺ */
+[data-testid="stColumn"]:last-child .stBaseButton-secondary,
+[data-testid="stColumn"]:last-child button {
+  background: var(--s2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  color: var(--muted) !important;
+  font-size: 0.85rem !important;
+  font-family: "JetBrains Mono", monospace !important;
+  min-height: 32px !important;
+  padding: 0 0.5rem !important;
+  box-shadow: none !important;
+  transition: color 0.18s, border-color 0.18s !important;
+}
+[data-testid="stColumn"]:last-child .stBaseButton-secondary:hover,
+[data-testid="stColumn"]:last-child button:hover {
+  color: var(--text) !important;
+  border-color: var(--accent) !important;
+  background: var(--s2) !important;
+}
+.stDeployButton { display: none !important; }
+html { background: #0d1117; }
+[data-testid="collapsedControl"] { display: none !important; }
+
+:root {
+  --bg:     #0d1117;
+  --s1:     #161b22;
+  --s2:     #21262d;
+  --border: #30363d;
+  --text:   #e6edf3;
+  --muted:  #8b949e;
+  --accent: #58a6ff;
+  --green:  #3fb950;
+  --red:    #f85149;
+}
+
+.stApp { background: var(--bg) !important; }
+.main .block-container {
+  max-width: 760px !important;
+  padding: 0 1rem 5rem 1rem !important;
+}
+
+.vg-topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,17,23,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.vg-brand {
+  display: flex; align-items: center; gap: 0.5rem;
+  color: var(--text); font-weight: 700; font-size: 0.92rem;
+  letter-spacing: -0.02em; font-family: "Inter", sans-serif;
+}
+.vg-nav a {
+  color: var(--muted); text-decoration: none; font-size: 0.8rem;
+  font-weight: 500; padding: 0.35rem 0.75rem;
+  border-radius: 6px; border: 1px solid transparent;
+  transition: 0.18s ease; font-family: "Inter", sans-serif;
+}
+.vg-nav a:hover { color: var(--text); border-color: var(--border); background: var(--s2); }
+
+.vg-welcome { text-align: center; padding: 2.5rem 1rem 1.5rem; }
+.vg-welcome h1 {
+  font-size: 1.55rem; font-weight: 700; color: var(--text);
+  margin-bottom: 0.5rem; font-family: "Inter", sans-serif; letter-spacing: -0.03em;
+}
+.vg-welcome p {
+  color: var(--muted); font-size: 0.875rem; line-height: 1.75;
+  max-width: 440px; margin: 0 auto 1.75rem; font-family: "Inter", sans-serif;
+}
+.vg-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; }
+
+/* Chips ahora son botones clicables */
+.vg-chip {
+  background: var(--s1); border: 1px solid var(--border); border-radius: 20px;
+  padding: 0.4rem 0.9rem; font-size: 0.78rem; color: var(--muted);
+  font-family: "Inter", sans-serif; transition: 0.18s;
+  cursor: pointer; user-select: none;
+}
+.vg-chip:hover {
+  color: var(--text); border-color: var(--accent);
+  background: rgba(88,166,255,0.08);
+}
+
+.vg-status { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.vg-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.71rem; font-family: "Inter", sans-serif;
+  border-radius: 20px; padding: 0.18rem 0.65rem;
+}
+.vg-ok  { color: var(--green); background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3); }
+.vg-err { color: var(--red);   background: rgba(248,81,73,0.1);  border: 1px solid rgba(248,81,73,0.3); }
+
+[data-testid="stChatMessage"] { background: transparent !important; padding: 0.25rem 0 !important; }
+[data-testid="chatAvatarIcon-user"] > div,
+[data-testid="chatAvatarIcon-assistant"] > div {
+  background: var(--s2) !important; border: 1px solid var(--border) !important;
+}
+
+/* Input: borde neutral, focus en accent azul (nunca rojo) */
+[data-testid="stChatInputContainer"] {
+  background: var(--s1) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+[data-testid="stChatInputContainer"]:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.12) !important;
+}
+[data-testid="stChatInputContainer"] textarea {
+  color: var(--text) !important; background: transparent !important;
+  font-family: "Inter", sans-serif !important; font-size: 0.9rem !important;
+  caret-color: var(--accent) !important;
+}
+[data-testid="stChatInputContainer"] textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Sobrescribe el rojo de Streamlit en focus a nivel global */
+*:focus { outline: none !important; }
+*:focus-visible { outline: none !important; }
+textarea:focus, input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+[data-testid="stChatInputContainer"],
+[data-testid="stChatInputContainer"] *,
+[data-testid="stChatInputContainer"]:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Luego aplica el tuyo */
+[data-testid="stChatInputContainer"]:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.12) !important;
+}
+
+details > summary {
+  background: var(--s1) !important; border: 1px solid var(--border) !important;
+  border-radius: 6px !important; color: var(--muted) !important;
+  font-size: 0.77rem !important; font-family: "JetBrains Mono", monospace !important;
+  padding: 0.4rem 0.75rem !important; cursor: pointer !important;
+  list-style: none !important; margin-top: 0.5rem !important;
+}
+details[open] > summary { border-radius: 6px 6px 0 0 !important; }
+details > div {
+  background: var(--s1) !important; border: 1px solid var(--border) !important;
+  border-top: none !important; border-radius: 0 0 6px 6px !important;
+  padding: 0.75rem !important;
+}
+
+code {
+  background: var(--bg) !important; color: var(--accent) !important;
+  border: 1px solid var(--border) !important; border-radius: 4px !important;
+  font-family: "JetBrains Mono", monospace !important; font-size: 0.78rem !important;
+  padding: 0.1rem 0.35rem !important;
+}
+pre > code {
+  display: block !important; padding: 0.85rem 1rem !important;
+  overflow-x: auto !important; line-height: 1.65 !important;
+  border: none !important; border-radius: 0 !important; background: transparent !important;
+}
+pre {
+  background: #010409 !important; border: 1px solid var(--border) !important;
+  border-radius: 8px !important; overflow: hidden !important; margin: 0.5rem 0 !important;
+}
+
+hr { border: none !important; border-top: 1px solid var(--border) !important; margin: 1.25rem 0 !important; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Topbar ────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="vg-topbar">
+  <div class="vg-brand">
+    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2.5">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    </svg>
+    Vigía Cauca
+  </div>
+  <nav class="vg-nav">
+    <a href="/" class="nav-active" target="_self">Chat</a>
+    <a href="/Equipo" target="_self">Equipo</a>
+  </nav>
+</div>
+""", unsafe_allow_html=True)
 
 
-def build_chat(uri: str, username: str, password: str, database: str, ollama_url: str, model: str) -> LocalGraphChat:
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def build_chat(uri, username, password, database, ollama_url, model):
     graph_client = Neo4jGraphClient(
-        uri=uri,
-        username=username,
-        password=password,
-        database=database,
+        uri=uri, username=username, password=password, database=database,
     )
-    ollama_client = OllamaClient(
-        base_url=ollama_url,
-        model=model,
-    )
+    ollama_client = OllamaClient(base_url=ollama_url, model=model)
     return LocalGraphChat(graph_client=graph_client, ollama_client=ollama_client)
 
 
+@st.cache_resource(show_spinner=False)
+def get_client():
+    try:
+        return build_chat(
+            NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD,
+            NEO4J_DATABASE, OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL,
+        ), None
+    except Exception as e:
+        return None, str(e)
+
+
+# ── Session state ─────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "connection_ok" not in st.session_state:
-    st.session_state.connection_ok = False
+# Estado para manejar el chip clicado
+if "chip_query" not in st.session_state:
+    st.session_state.chip_query = None
+
+# ── Connection check ──────────────────────────────────────────────────────────
+client, init_err = get_client()
+neo4j_ok, ollama_ok = False, False
+conn_error = init_err or ""
+
+if client:
+    try:
+        client.check_connections()
+        neo4j_ok, ollama_ok = True, True
+    except Exception as e:
+        conn_error = str(e)
+        err = conn_error.lower()
+        neo4j_ok  = not any(k in err for k in ["neo4j", "bolt", "7687", "serviceunavailable", "authentication"])
+        ollama_ok = not any(k in err for k in ["ollama", "11434", "connection refused", "connectionerror"])
 
 
-st.title("Vigia Cauca Chat")
-st.caption("Chat local con Ollama y consultas sobre Neo4j")
-
-with st.sidebar:
-    st.subheader("Conexiones")
-    neo4j_uri = st.text_input("Neo4j URI", value=NEO4J_URI)
-    neo4j_username = st.text_input("Neo4j usuario", value=NEO4J_USERNAME)
-    neo4j_password = st.text_input("Neo4j contraseña", value=NEO4J_PASSWORD, type="password")
-    neo4j_database = st.text_input("Neo4j database", value=NEO4J_DATABASE)
-    ollama_url = st.text_input("Ollama URL", value=OLLAMA_BASE_URL)
-    ollama_model = st.text_input("Modelo Ollama", value=OLLAMA_CHAT_MODEL)
-
-    if st.button("Probar conexiones", use_container_width=True):
-        try:
-            chat = build_chat(
-                neo4j_uri,
-                neo4j_username,
-                neo4j_password,
-                neo4j_database,
-                ollama_url,
-                ollama_model,
-            )
-            chat.check_connections()
-            st.session_state.connection_ok = True
-            st.success("Neo4j y Ollama responden correctamente.")
-        except Exception as exc:
-            st.session_state.connection_ok = False
-            st.error(f"No se pudo conectar: {exc}")
-
-    st.markdown("Consultas sugeridas:")
-    st.code("Top 5 municipios con más novedades")
-    st.code("¿Qué novedades hubo en Toribío?")
-    st.code("¿Qué actores aparecen en ataques con dron?")
+def pill(label, ok):
+    cls = "vg-ok" if ok else "vg-err"
+    return f'<span class="vg-pill {cls}">● {label}</span>'
 
 
-for item in st.session_state.messages:
-    with st.chat_message(item["role"]):
-        st.markdown(item["content"])
-        if item.get("cypher"):
-            with st.expander("Cypher ejecutado"):
-                st.code(item["cypher"], language="cypher")
-        if item.get("rows"):
-            with st.expander("Filas devueltas"):
-                st.json(item["rows"])
+status_col, btn_col = st.columns([6, 1])
+with status_col:
+    st.markdown(
+        f'<div class="vg-status">{pill("Neo4j", neo4j_ok)}{pill("Ollama", ollama_ok)}</div>',
+        unsafe_allow_html=True,
+    )
+with btn_col:
+    if st.button("↺", help="Reconectar servicios", use_container_width=True):
+        get_client.clear()
+        st.rerun()
+
+if conn_error and not (neo4j_ok and ollama_ok):
+    with st.expander("⬡ Ver detalle del error de conexión"):
+        st.code(conn_error, language="text")
+
+# ── Welcome + Chips clicables ─────────────────────────────────────────────────
+EXAMPLES = [
+    "¿Top 3 municipios con más hechos?",
+    "¿Cuántos hostigamientos en 2024?",
+    "¿Qué ocurrió en Toribío?",
+    "¿Ataques con drones reportados?",
+    "¿Municipios con más desplazamientos?",
+]
+
+if not st.session_state.messages:
+    st.markdown("""
+    <div class="vg-welcome">
+      <h1>🛡️ Sistema de Análisis de Orden Público</h1>
+      <p>Consulta en lenguaje natural sobre los hechos de seguridad del departamento del Cauca.
+      El sistema genera reportes automáticamente a partir de la base de conocimiento.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Chips como botones Streamlit con estilo custom
+    # Chips como botones Streamlit — 2 por fila para que no se aplasten
+    st.markdown('<div class="vg-chips-wrap">', unsafe_allow_html=True)
+    row1 = st.columns([1, 1])
+    row2 = st.columns([1, 1])
+    row3 = st.columns([1, 1, 1])
+
+    chip_pairs = [(row1, EXAMPLES[0:2]), (row2, EXAMPLES[2:4]), (row3, EXAMPLES[4:5])]
+    for row_cols, row_examples in chip_pairs:
+        for j, example in enumerate(row_examples):
+            with row_cols[j]:
+                if st.button(example, key=f"chip_{EXAMPLES.index(example)}", use_container_width=True):
+                    st.session_state.chip_query = example
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Inyectar estilo sobre los botones de chips generados por Streamlit
+    st.markdown("""
+    <style>
+    /* Chips */
+    .vg-chips-wrap { margin-bottom: 1rem; }
+
+    [data-testid="stHorizontalBlock"] .stBaseButton-secondary,
+    [data-testid="stHorizontalBlock"] button[data-testid="stBaseButton-secondary"],
+    [data-testid="stHorizontalBlock"] button {
+      background: var(--s1) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 20px !important;
+      padding: 0.35rem 0.85rem !important;
+      font-size: 0.78rem !important;
+      color: var(--muted) !important;
+      font-family: "Inter", sans-serif !important;
+      transition: 0.18s !important;
+      box-shadow: none !important;
+      min-height: 36px !important;
+      line-height: 1.3 !important;
+    }
+    [data-testid="stHorizontalBlock"] button p,
+    [data-testid="stHorizontalBlock"] .stBaseButton-secondary p {
+      color: var(--muted) !important;
+      font-size: 0.78rem !important;
+      font-family: "Inter", sans-serif !important;
+      margin: 0 !important;
+    }
+    [data-testid="stHorizontalBlock"] button:hover,
+    [data-testid="stHorizontalBlock"] .stBaseButton-secondary:hover {
+      color: var(--text) !important;
+      border-color: var(--accent) !important;
+      background: rgba(88,166,255,0.08) !important;
+    }
+    [data-testid="stHorizontalBlock"] button:hover p,
+    [data-testid="stHorizontalBlock"] .stBaseButton-secondary:hover p {
+      color: var(--text) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+# ── Historial ─────────────────────────────────────────────────────────────────
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"], avatar="👤" if msg["role"] == "user" else "🛡️"):
+        st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            if msg.get("cypher"):
+                with st.expander("⬡ Ver consulta Cypher ejecutada"):
+                    st.code(msg["cypher"], language="cypher")
+            if msg.get("rows"):
+                with st.expander(f"⬡ Ver datos crudos · {len(msg['rows'])} registros"):
+                    st.json(msg["rows"])
 
 
-prompt = st.chat_input("Escribe tu consulta sobre novedades de orden público")
-
-if prompt:
+# ── Procesador central de consultas ──────────────────────────────────────────
+def process_query(prompt: str):
+    """Agrega el mensaje del usuario y genera la respuesta del asistente."""
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        try:
-            chat = build_chat(
-                neo4j_uri,
-                neo4j_username,
-                neo4j_password,
-                neo4j_database,
-                ollama_url,
-                ollama_model,
-            )
-            turn = chat.ask(prompt)
-            st.markdown(turn.answer)
-            if turn.cypher:
-                with st.expander("Cypher ejecutado"):
-                    st.code(turn.cypher, language="cypher")
-            if turn.rows:
-                with st.expander("Filas devueltas"):
-                    st.json(turn.rows)
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": turn.answer,
-                    "cypher": turn.cypher,
-                    "rows": turn.rows,
-                }
-            )
-        except Exception as exc:
-            message = f"Error al procesar la consulta: {exc}"
-            st.error(message)
-            st.session_state.messages.append({"role": "assistant", "content": message})
+    with st.chat_message("assistant", avatar="🛡️"):
+        if not client or not (neo4j_ok and ollama_ok):
+            resp = "⚠️ **Servicio no disponible.** Verifica que Neo4j y Ollama estén corriendo."
+            st.markdown(resp)
+            st.session_state.messages.append({"role": "assistant", "content": resp})
+        else:
+            with st.spinner("Analizando consulta…"):
+                try:
+                    result = client.ask(prompt)
+                    st.markdown(result.answer)
+                    if result.cypher:
+                        with st.expander("⬡ Ver consulta Cypher ejecutada"):
+                            st.code(result.cypher, language="cypher")
+                    if result.rows:
+                        with st.expander(f"⬡ Ver datos crudos · {len(result.rows)} registros"):
+                            st.json(result.rows)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": result.answer,
+                        "cypher": result.cypher,
+                        "rows": result.rows,
+                    })
+                except Exception as e:
+                    err_msg = f"❌ **Error:** `{e}`"
+                    st.markdown(err_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": err_msg})
+
+
+# ── Ejecutar chip clicado (antes del chat_input para no colisionar) ────────────
+if st.session_state.chip_query:
+    query = st.session_state.chip_query
+    st.session_state.chip_query = None
+    process_query(query)
+    st.rerun()
+
+# ── Input ─────────────────────────────────────────────────────────────────────
+if prompt := st.chat_input("Escribe tu consulta sobre orden público del Cauca…"):
+    process_query(prompt)

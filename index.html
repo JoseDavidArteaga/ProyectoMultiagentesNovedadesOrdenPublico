@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vigía Cauca — Sistema de Análisis Multiagente</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdn.jsdelivr.net/npm/simple-parallax-js@5.6.2/dist/simpleParallax.min.js" defer></script>
+
+<style>
+/* ─── TOKENS ─── */
+:root {
+  --bg:             #0a0e1a;
+  --surface:        rgba(255,255,255,0.035);
+  --surface-2:      rgba(255,255,255,0.06);
+  --surface-hover:  rgba(255,255,255,0.08);
+  --border:         rgba(255,255,255,0.09);
+  --border-accent:  rgba(120,196,181,0.35);
+  --text:           #dde4f0;
+  --muted:          #8896ab;
+  --faint:          #4e5a6e;
+  --accent:         #78c4b5;
+  --accent-dim:     rgba(120,196,181,0.12);
+  --accent-glow:    rgba(120,196,181,0.18);
+  --blue:           #5ea3ff;
+  --blue-dim:       rgba(94,163,255,0.10);
+  --gold:           #d4a84b;
+  --max-w:          1160px;
+  --r-card:         20px;
+  --r-sm:           10px;
+  --shadow-card:    0 1px 2px rgba(0,0,0,0.3), 0 16px 48px rgba(0,0,0,0.25);
+  --shadow-hero:    0 32px 120px rgba(0,0,0,0.4);
+  --transition:     180ms cubic-bezier(0.16,1,0.3,1);
+  --font-display:   "Instrument Serif", Georgia, serif;
+  --font-body:      "Inter", system-ui, sans-serif;
+  --font-mono:      "JetBrains Mono", monospace;
+}
+
+/* ─── BASE ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  scroll-padding-top: 5rem;
+}
+body {
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  color: var(--text);
+  background-color: var(--bg);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(94,163,255,0.10), transparent),
+    radial-gradient(ellipse 60% 40% at 0% 80%, rgba(120,196,181,0.06), transparent),
+    radial-gradient(ellipse 50% 60% at 100% 20%, rgba(212,168,75,0.05), transparent);
+  pointer-events: none !important;
+}
+body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+main, section, footer { position: relative; z-index: 1; }
+header { position: relative; z-index: 200; isolation: isolate; }
+img { display: block; max-width: 100%; }
+ul { list-style: none; }
+a { color: inherit; text-decoration: none; }
+
+/* ─── TOPBAR ─── */
+.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 clamp(1.25rem, 4vw, 2.5rem);
+  height: 56px;
+  background: rgba(10,14,26,0.80);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+.topbar__logo {
+  display: flex; align-items: center; gap: 0.65rem;
+  font-size: 0.92rem; font-weight: 600; letter-spacing: -0.01em;
+}
+.logo-mark { width: 28px; height: 28px; }
+.topbar__nav { display: flex; align-items: center; gap: 0.25rem; }
+.topbar__nav a {
+  font-size: 0.84rem; font-weight: 500; color: var(--muted);
+  padding: 0.45rem 0.9rem; border-radius: var(--r-sm);
+  transition: color var(--transition), background var(--transition);
+}
+.topbar__nav a:hover { color: var(--text); background: var(--surface-2); }
+.topbar__cta {
+  font-size: 0.84rem !important; font-weight: 600 !important;
+  color: var(--bg) !important;
+  background: var(--text) !important;
+  border-radius: 999px !important;
+  padding: 0.55rem 1.2rem !important;
+}
+.topbar__cta:hover { opacity: 0.88 !important; }
+
+/* ─── CONTAINER ─── */
+.container {
+  width: min(var(--max-w), calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+/* ─── HERO ─── */
+.hero {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: clamp(2rem, 4vw, 4rem);
+  align-items: center;
+  width: min(var(--max-w), calc(100% - 2.5rem));
+  margin-inline: auto;
+  padding-top: 7rem;
+  padding-bottom: 5rem;
+}
+.hero__eyebrow {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--accent); font-weight: 600;
+  margin-bottom: 1.4rem;
+}
+.hero__eyebrow-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px 2px var(--accent-glow);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2.8rem, 5.5vw, 5.2rem);
+  line-height: 1.0; letter-spacing: -0.03em;
+  color: var(--text); max-width: 13ch; margin-bottom: 1.4rem;
+}
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero__lead {
+  color: var(--muted);
+  font-size: clamp(0.96rem, 1vw + 0.5rem, 1.08rem);
+  line-height: 1.75; max-width: 52ch; margin-bottom: 2.2rem;
+}
+.hero__actions { display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  padding: 0.78rem 1.4rem; border-radius: 999px;
+  font-size: 0.9rem; font-weight: 600;
+  transition: all var(--transition);
+  cursor: pointer; border: 1px solid transparent;
+}
+.btn--primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.btn--primary:hover { opacity: 0.88; }
+.btn--ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+.btn--ghost:hover { background: var(--surface-2); border-color: rgba(255,255,255,0.15); }
+.hero__media {
+  position: relative; border-radius: var(--r-card);
+  overflow: hidden; border: 1px solid var(--border);
+  background: var(--surface); box-shadow: var(--shadow-hero);
+  min-height: 480px;
+}
+.hero__media::after {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background: linear-gradient(180deg, rgba(10,14,26,0.05) 60%, rgba(10,14,26,0.55) 100%);
+}
+.hero__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hero__label {
+  position: absolute; bottom: 1.4rem; left: 1.4rem; z-index: 3;
+  display: flex; align-items: center; gap: 0.55rem;
+  background: rgba(10,14,26,0.72); backdrop-filter: blur(16px);
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.8rem; color: var(--muted); font-weight: 500;
+}
+.hero__label span { color: var(--text); }
+
+/* ─── SECCIÓN GENÉRICA ─── */
+.section { padding: clamp(4rem, 2vw, 7rem) 0; }
+.section-label {
+  font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.13em;
+  color: var(--faint); font-weight: 600; margin-bottom: 0.9rem;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3.5vw, 3.2rem);
+  letter-spacing: -0.025em; line-height: 1.1; margin-bottom: 1rem;
+}
+.section-lead {
+  color: var(--muted); max-width: 58ch; line-height: 1.75; margin-bottom: 3rem;
+}
+
+/* ─── QUÉ ANALIZA ─── */
+.entities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px,100%), 1fr));
+  gap: 1rem;
+}
+.entity-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); padding: 1.4rem 1.6rem;
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.entity-card:hover {
+  background: var(--surface-2); border-color: rgba(255,255,255,0.14);
+  box-shadow: var(--shadow-card);
+}
+.entity-card__icon {
+  width: 36px; height: 36px; display: flex; align-items: center;
+  justify-content: center; color: var(--accent); margin-bottom: 0.9rem;
+}
+.entity-card__title { font-size: 0.96rem; font-weight: 600; color: var(--text); margin-bottom: 0.4rem; }
+.entity-card__desc  { font-size: 0.84rem; color: var(--muted); line-height: 1.65; }
+
+/* ─── GLOWY AGENT CARDS ─── */
+.agents-wrapper {
+  position: relative;
+}
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+.agent-card {
+  --hsl: var(--hue), var(--saturation), var(--lightness);
+  padding: 1.6rem 1.75rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 1rem;
+  background: #0f1520;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  transition: 350ms background ease;
+  will-change: background;
+  position: relative; z-index: 1;
+}
+.agent-card:nth-child(1) { --hue: 165; --saturation: 75%; --lightness: 48%; }
+.agent-card:nth-child(2) { --hue: 210; --saturation: 80%; --lightness: 60%; }
+.agent-card:nth-child(3) { --hue: 280; --saturation: 72%; --lightness: 65%; }
+.agent-card:hover { background: hsla(var(--hsl), 0.08); }
+
+.agent-card__header { display: flex; flex-direction: column; gap: 0.25rem; }
+.agent-card__number {
+  font-size: 0.68rem; font-family: var(--font-mono);
+  color: hsl(var(--hsl)); letter-spacing: 0.1em;
+  text-transform: uppercase; font-weight: 500;
+}
+.agent-card__name {
+  font-size: 1.05rem; font-weight: 700; color: var(--text);
+  letter-spacing: -0.02em; line-height: 1.2;
+}
+.agent-card__sub {
+  font-size: 0.72rem; color: hsl(var(--hsl));
+  font-family: var(--font-mono); font-weight: 500;
+}
+.agent-card__body {
+  font-size: 0.83rem; color: var(--muted); line-height: 1.68;
+}
+.agent-card__bullets {
+  font-size: 0.8rem; color: var(--muted); line-height: 1.6;
+  display: flex; flex-direction: column; gap: 0.3rem;
+}
+.agent-card__bullets li {
+  display: flex; gap: 0.5rem; align-items: flex-start;
+}
+.agent-card__bullets li::before {
+  content: "▸"; color: hsl(var(--hsl));
+  flex-shrink: 0; margin-top: 0.05rem;
+}
+.agent-card__badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.7rem; font-family: var(--font-mono);
+  color: hsl(var(--hue), var(--saturation), 75%);
+  background: hsla(var(--hsl), 0.1);
+  border: 1px solid hsla(var(--hsl), 0.3);
+  border-radius: 20px; padding: 0.2rem 0.65rem;
+  width: fit-content;
+}
+
+/* Overlay glowy */
+.agents-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none; user-select: none;
+  opacity: var(--opacity, 0);
+  -webkit-mask: radial-gradient(22rem 22rem at var(--x) var(--y), #000 1%, transparent 50%);
+  mask: radial-gradient(22rem 22rem at var(--x) var(--y), #000 1%, transparent 50%);
+  transition: 400ms mask ease, 400ms -webkit-mask ease;
+  will-change: mask;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+.agents-overlay .agent-card {
+  background: hsla(var(--hsl), 0.12);
+  border-color: hsl(var(--hsl));
+  box-shadow: 0 0 0 1px inset hsl(var(--hsl));
+}
+.agents-overlay .agent-card__name  { color: hsl(var(--hue), var(--saturation), 90%); }
+.agents-overlay .agent-card__body  { color: #c9d1d9; }
+.agents-overlay .agent-card__bullets { color: #c9d1d9; }
+.agents-overlay .agent-card__number  { color: hsl(var(--hsl)); }
+
+/* Pipeline terminal */
+.pipeline-terminal {
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 1.6rem 1.8rem;
+  margin-top: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 2;
+}
+.pipeline-terminal strong { color: var(--text); font-weight: 500; }
+.pipeline-terminal .hi    { color: var(--accent); }
+.pipeline-terminal .arrow { color: var(--faint); }
+
+/* ─── TERRITORIO ─── */
+.territory-section { padding: clamp(4rem, 8vw, 7rem) 0; overflow: hidden; }
+.territory-inner {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: clamp(2rem, 4vw, 4rem);
+  align-items: center;
+}
+.territory__media {
+  border-radius: var(--r-card); overflow: hidden;
+  border: 1px solid var(--border); min-height: 440px; position: relative;
+}
+.territory__media img { width: 100%; height: 100%; object-fit: cover; }
+.territory__meta { display: flex; flex-direction: column; gap: 1.4rem; }
+.stat-item {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  padding-bottom: 1.2rem; border-bottom: 1px solid var(--border);
+}
+.stat-item:last-child { border-bottom: none; padding-bottom: 0; }
+.stat-item__value {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 3.5vw, 3rem);
+  letter-spacing: -0.03em; color: var(--text); line-height: 1;
+}
+.stat-item__value em { color: var(--accent); font-style: normal; }
+.stat-item__label { font-size: 0.82rem; color: var(--muted); }
+
+/* ─── POR QUÉ IMPORTA ─── */
+.importance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.importance-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); padding: 2rem;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.importance-card:hover { background: var(--surface-2); box-shadow: var(--shadow-card); }
+.importance-card--wide { grid-column: 1 / -1; }
+.importance-card__tag {
+  display: inline-block;
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.11em;
+  color: var(--gold); background: rgba(212,168,75,0.1);
+  border: 1px solid rgba(212,168,75,0.2);
+  border-radius: 999px; padding: 0.22rem 0.7rem; margin-bottom: 1rem;
+}
+.importance-card h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.55rem; }
+.importance-card p  { font-size: 0.87rem; color: var(--muted); line-height: 1.7; }
+
+/* ─── CTA FINAL ─── */
+.cta-section { padding: clamp(5rem, 10vw, 8rem) 0; }
+.cta-inner { text-align: center; max-width: 640px; margin-inline: auto; }
+.cta-inner h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 4.5vw, 4rem);
+  letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 1.2rem;
+}
+.cta-inner p { color: var(--muted); font-size: 1rem; line-height: 1.7; margin-bottom: 2.2rem; }
+.cta-inner .btn { margin-inline: auto; }
+
+/* ─── FOOTER ─── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem clamp(1.25rem, 4vw, 2.5rem);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+footer p   { font-size: 0.82rem; color: var(--faint); }
+footer a   { color: var(--muted); font-size: 0.82rem; transition: color var(--transition); }
+footer a:hover { color: var(--text); }
+
+/* ─── DIVIDER ─── */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+
+/* ─── REVEAL ─── */
+.reveal {
+  opacity: 0; transform: translateY(24px);
+  transition: opacity 600ms cubic-bezier(0.16,1,0.3,1),
+              transform 600ms cubic-bezier(0.16,1,0.3,1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  .agents-grid, .agents-overlay { grid-template-columns: 1fr; }
+  .agents-overlay { display: none; } /* desactivar glowy en móvil */
+}
+@media (max-width: 860px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero__media { min-height: 300px; order: -1; }
+  .territory-inner { grid-template-columns: 1fr; }
+  .territory__media { min-height: 260px; }
+  .importance-grid { grid-template-columns: 1fr; }
+  .importance-card--wide { grid-column: auto; }
+}
+@media (max-width: 540px) {
+  .topbar__nav { display: none; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- TOPBAR -->
+<header>
+  <nav class="topbar" role="navigation" aria-label="Navegación principal">
+    <a class="topbar__logo" href="#inicio" aria-label="Vigía Cauca inicio">
+      <svg class="logo-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <path d="M14 3L24 8v7c0 5.5-4.5 9.5-10 11C8.5 24.5 4 20.5 4 15V8L14 3z" fill="#78c4b5" opacity="0.18"/>
+        <path d="M14 3L24 8v7c0 5.5-4.5 9.5-10 11C8.5 24.5 4 20.5 4 15V8L14 3z" stroke="#78c4b5" stroke-width="1.5" fill="none"/>
+        <circle cx="14" cy="13" r="2.5" fill="#78c4b5"/>
+      </svg>
+      Vigía Cauca
+    </a>
+    <div class="topbar__nav">
+      <a href="#analiza">Qué analiza</a>
+      <a href="#agentes">Agentes</a>
+      <a href="#importancia">Contexto</a>
+      <a href="http://localhost:8501" class="btn topbar__cta" target="_blank" rel="noopener noreferrer">Entrar al sistema</a>
+    </div>
+  </nav>
+</header>
+
+<main id="inicio">
+
+  <!-- ── HERO ── -->
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="hero__content">
+      <p class="hero__eyebrow">
+        <span class="hero__eyebrow-dot" aria-hidden="true"></span>
+        Sistema multiagente · Cauca, Colombia
+      </p>
+      <h1 id="hero-heading">
+        Hechos del Cauca,<br><em>interpretados</em><br>con precisión.
+      </h1>
+      <p class="hero__lead">
+        Escribe una consulta en lenguaje natural y obtén un informe estructurado
+        sobre eventos relevantes del departamento: actores, municipios, fechas,
+        afectaciones y contexto geopolítico.
+      </p>
+      <div class="hero__actions">
+        <a href="http://localhost:8501" class="btn btn--primary" target="_blank" rel="noopener noreferrer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Consultar ahora
+        </a>
+        <a href="#agentes" class="btn btn--ghost">
+          Ver los agentes
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="hero__media">
+      <img
+        class="parallax-img"
+        src="assets/CaucaMapWB.png"
+        alt="Paisaje representativo del departamento del Cauca, Colombia"
+        width="900" height="700"
+        loading="eager" decoding="async"
+      />
+      <div class="hero__label" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Cauca, Colombia · <span>42 municipios monitoreados</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── QUÉ ANALIZA ── -->
+  <section class="section" id="analiza" aria-labelledby="analiza-heading">
+    <div class="container">
+      <p class="section-label reveal">Cobertura del sistema</p>
+      <h2 class="section-title reveal" id="analiza-heading">Entidades que rastrea y relaciona</h2>
+      <p class="section-lead reveal">
+        El sistema extrae y conecta en un grafo de conocimiento las entidades clave
+        de cada hecho documentado en el departamento del Cauca.
+      </p>
+
+      <div class="entities-grid">
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h3 class="entity-card__title">Municipios</h3>
+          <p class="entity-card__desc">Localización geográfica y contexto territorial de cada evento registrado.</p>
+        </article>
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="entity-card__title">Actores</h3>
+          <p class="entity-card__desc">Instituciones, grupos y personas involucradas en los hechos documentados.</p>
+        </article>
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <h3 class="entity-card__title">Fechas y periodos</h3>
+          <p class="entity-card__desc">Líneas de tiempo de eventos con contexto histórico y frecuencia de ocurrencia.</p>
+        </article>
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3 class="entity-card__title">Afectaciones</h3>
+          <p class="entity-card__desc">Tipo de impacto, magnitud y población o infraestructura afectada.</p>
+        </article>
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <h3 class="entity-card__title">Relaciones en el grafo</h3>
+          <p class="entity-card__desc">Conexiones entre entidades en el grafo de conocimiento Neo4j.</p>
+        </article>
+        <article class="entity-card reveal">
+          <div class="entity-card__icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3 class="entity-card__title">Tipología del hecho</h3>
+          <p class="entity-card__desc">Clasificación del evento: orden público, desastre, social, político u otro.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── AGENTES (glowy cards) ── -->
+  <section class="section" id="agentes" aria-labelledby="agentes-heading">
+    <div class="container">
+      <p class="section-label reveal">Arquitectura multiagente</p>
+      <h2 class="section-title reveal" id="agentes-heading">Tres agentes, una cadena</h2>
+      <p class="section-lead reveal">
+        Cada agente tiene un rol especializado e irremplazable. Trabajan en secuencia:
+        el anterior alimenta al siguiente. Pasa el cursor sobre cada tarjeta.
+      </p>
+
+      <div class="agents-wrapper reveal" id="agents-root">
+        <div class="agents-grid" id="agents-inner">
+
+          <!-- Agente 1 -->
+          <div class="agent-card">
+            <div class="agent-card__header">
+              <div class="agent-card__number">AGENTE 01</div>
+              <div class="agent-card__name">Intérprete</div>
+              <div class="agent-card__sub">Ollama · qwen3</div>
+            </div>
+            <div class="agent-card__body">
+              Recibe la pregunta en lenguaje natural y la convierte en un plan de consulta
+              estructurado (JSON). Identifica entidades clave — municipio, fecha, tipo de
+              hecho — sin acceder directamente a la base de datos.
+            </div>
+            <ul class="agent-card__bullets" role="list">
+              <li>Detección de municipios, actores y fechas</li>
+              <li>Genera parámetros Cypher tipados</li>
+              <li>Corre 100% local, sin costo de API</li>
+              <li>Responde en JSON estructurado y validable</li>
+            </ul>
+            <span class="agent-card__badge">🔍 NLP local</span>
+          </div>
+
+          <!-- Agente 2 -->
+          <div class="agent-card">
+            <div class="agent-card__header">
+              <div class="agent-card__number">AGENTE 02</div>
+              <div class="agent-card__name">Consultor</div>
+              <div class="agent-card__sub">Ollama · qwen3 + Neo4j</div>
+            </div>
+            <div class="agent-card__body">
+              Traduce el plan del Agente 1 a una consulta Cypher y la ejecuta directamente
+              en el grafo de conocimiento. Navega relaciones geográficas y temporales
+              del Cauca para recuperar registros verificados.
+            </div>
+            <ul class="agent-card__bullets" role="list">
+              <li>Genera Cypher seguro (solo lectura)</li>
+              <li>Navega la jerarquía territorial del Cauca</li>
+              <li>Recupera hechos, actores y afectaciones</li>
+              <li>Devuelve registros tabulares al Agente 3</li>
+            </ul>
+            <span class="agent-card__badge">⬡ Grafo Neo4j</span>
+          </div>
+
+          <!-- Agente 3 -->
+          <div class="agent-card">
+            <div class="agent-card__header">
+              <div class="agent-card__number">AGENTE 03</div>
+              <div class="agent-card__name">Redactor</div>
+              <div class="agent-card__sub">Ollama · qwen3</div>
+            </div>
+            <div class="agent-card__body">
+              Convierte los datos crudos de Neo4j en un informe coherente y claro.
+              Adapta el tono al perfil del usuario final y organiza la información
+              en secciones legibles para decisores no técnicos.
+            </div>
+            <ul class="agent-card__bullets" role="list">
+              <li>Sintetiza múltiples registros en prosa</li>
+              <li>Organiza respuestas largas en viñetas</li>
+              <li>No inventa datos — solo los recibidos</li>
+              <li>Lenguaje claro para decisores no técnicos</li>
+            </ul>
+            <span class="agent-card__badge">✍️ Generación RAG</span>
+          </div>
+
+        </div>
+        <!-- Overlay para el glowy effect -->
+        <div class="agents-overlay" id="agents-overlay" aria-hidden="true"></div>
+      </div>
+
+      <!-- Pipeline terminal -->
+      <div class="pipeline-terminal reveal">
+        <strong>01 · Intérprete</strong>&nbsp;&nbsp; pregunta natural → <span class="hi">{ needs_query, cypher_params }</span><br>
+        <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</span><br>
+        <strong>02 · Consultor</strong>&nbsp;&nbsp;&nbsp; Cypher → Neo4j → <span class="hi">[ registros crudos ]</span><br>
+        <span class="arrow">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓</span><br>
+        <strong>03 · Redactor</strong>&nbsp;&nbsp;&nbsp;&nbsp; registros + pregunta → <span class="hi">informe en lenguaje natural</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONTEXTO TERRITORIAL (parallax) ── -->
+  <section class="territory-section" id="contexto" aria-labelledby="territorio-heading">
+    <div class="territory-inner container">
+      <div class="territory__media">
+        <img
+          class="parallax-img"
+          src="assets/guerrilla.png"
+          alt="Vista representativa de un municipio caucano, Colombia"
+          width="800" height="600"
+          loading="lazy" decoding="async"
+        />
+      </div>
+      <div class="territory__meta reveal">
+        <p class="section-label">Territorio cubierto</p>
+        <h2 class="section-title" id="territorio-heading">El Cauca en cifras</h2>
+        <p style="color:var(--muted);font-size:0.9rem;line-height:1.7;margin-bottom:1.6rem;">
+          El departamento del Cauca concentra una complejidad social y geográfica
+          que exige herramientas de análisis rigurosas y accesibles para la toma de decisiones.
+        </p>
+        <div class="stat-item">
+          <span class="stat-item__value">42<em>+</em></span>
+          <span class="stat-item__label">Municipios con cobertura de monitoreo</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-item__value">3<em> agentes</em></span>
+          <span class="stat-item__label">LLM especializados trabajando en cadena</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-item__value">Neo4j<em> +</em> RAG</span>
+          <span class="stat-item__label">Grafo de conocimiento + recuperación semántica</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── POR QUÉ IMPORTA ── -->
+  <section class="section" id="importancia" aria-labelledby="importancia-heading">
+    <div class="container">
+      <p class="section-label reveal">Justificación</p>
+      <h2 class="section-title reveal" id="importancia-heading">Por qué existe este sistema</h2>
+
+      <div class="importance-grid">
+        <article class="importance-card importance-card--wide reveal">
+          <span class="importance-card__tag">Problema central</span>
+          <h3>Información fragmentada, acceso difícil</h3>
+          <p>
+            Los hechos relevantes del Cauca están dispersos en múltiples fuentes, formatos y fechas.
+            Consolidarlos manualmente toma horas y produce análisis incompletos. Este sistema
+            centraliza la información en un grafo y la hace consultable en segundos con lenguaje natural.
+          </p>
+        </article>
+        <article class="importance-card reveal">
+          <span class="importance-card__tag">Valor analítico</span>
+          <h3>Relaciones que los documentos no muestran</h3>
+          <p>
+            Un grafo de conocimiento permite descubrir conexiones entre eventos,
+            actores y territorios que no son visibles en fuentes lineales.
+          </p>
+        </article>
+        <article class="importance-card reveal">
+          <span class="importance-card__tag">Eficiencia operativa</span>
+          <h3>De horas a minutos</h3>
+          <p>
+            Lo que tarda horas en revisión manual, el sistema lo entrega como
+            informe estructurado en menos de un minuto.
+          </p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA FINAL ── -->
+  <section class="cta-section" aria-labelledby="cta-heading">
+    <div class="container">
+      <div class="cta-inner reveal">
+        <h2 id="cta-heading">Haz tu primera<br><em style="font-style:italic;color:var(--accent);">consulta ahora.</em></h2>
+        <p>
+          Escribe en lenguaje natural. El sistema interpreta, consulta el grafo
+          y genera un informe estructurado en segundos.
+        </p>
+        <a href="http://localhost:8501" class="btn btn--primary" target="_blank" rel="noopener noreferrer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Abrir el sistema
+        </a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2026 Vigía Cauca · Sistema Multiagente de Análisis Documental · Universidad del Cauca</p>
+  <div style="display:flex;gap:1.5rem;">
+    <a href="#agentes">Agentes</a>
+    <a href="#contexto">Contexto</a>
+    <a href="http://localhost:8501" target="_blank" rel="noopener noreferrer">Sistema</a>
+  </div>
+</footer>
+
+<script>
+window.addEventListener("DOMContentLoaded", () => {
+
+  // ── Parallax ──
+  const imgs = document.querySelectorAll(".parallax-img");
+  if (imgs.length && typeof simpleParallax !== "undefined") {
+    new simpleParallax(imgs, {
+      delay: 0.4,
+      transition: "cubic-bezier(0.16, 1, 0.3, 1)",
+      scale: 1.18,
+      overflow: true,
+      orientation: "up"
+    });
+  }
+
+  // ── Scroll reveal ──
+  const reveals = document.querySelectorAll(".reveal");
+  const io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e, i) => {
+        if (e.isIntersecting) {
+          setTimeout(() => e.target.classList.add("visible"), i * 60);
+          io.unobserve(e.target);
+        }
+      });
+    },
+    { threshold: 0.10 }
+  );
+  reveals.forEach(el => io.observe(el));
+
+  // ── Glowy agent cards ──
+  const root    = document.getElementById("agents-root");
+  const inner   = document.getElementById("agents-inner");
+  const overlay = document.getElementById("agents-overlay");
+  const cards   = Array.from(inner.querySelectorAll(".agent-card"));
+
+  // Clonar cards en el overlay
+  cards.forEach(card => {
+    const clone = card.cloneNode(true);
+    overlay.appendChild(clone);
+  });
+
+  // Sincronizar tamaños
+  const ro = new ResizeObserver(entries => {
+    entries.forEach(entry => {
+      const idx = cards.indexOf(entry.target);
+      if (idx >= 0 && overlay.children[idx]) {
+        overlay.children[idx].style.width  = `${entry.borderBoxSize[0].inlineSize}px`;
+        overlay.children[idx].style.height = `${entry.borderBoxSize[0].blockSize}px`;
+      }
+    });
+  });
+  cards.forEach(c => ro.observe(c));
+
+  // Mouse mask
+  root.addEventListener("pointermove", e => {
+    const rect = root.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    overlay.style.cssText = `--opacity:1; --x:${x}px; --y:${y}px;`;
+  });
+  root.addEventListener("pointerleave", () => {
+    overlay.style.cssText = "--opacity:0;";
+  });
+
+});
+</script>
+
+</body>
+</html>
