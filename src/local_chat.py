@@ -5,12 +5,16 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+import re
+import time
+from typing import Any, Callable
 
 from config import (
     OLLAMA_MODEL_CONSULTANT,
     OLLAMA_MODEL_INTERPRETER,
     OLLAMA_MODEL_REDACTOR,
+    OLLAMA_NUM_PREDICT_JSON,
+    OLLAMA_NUM_PREDICT_TEXT,
 )
 from src.neo4j_graph import Neo4jGraphClient, QueryResult
 from src.ollama_client import OllamaClient
@@ -97,6 +101,17 @@ class ChatTurn:
     cypher: str
     rows: list[dict[str, Any]]
     intencion_json: dict[str, Any] | None = None
+    debug_trace: list[str] | None = None
+
+
+class PipelineStageError(RuntimeError):
+    """Error con contexto de etapa para depuración del pipeline."""
+
+    def __init__(self, stage: str, message: str, debug_trace: list[str], original: Exception | None = None):
+        super().__init__(f"[{stage}] {message}")
+        self.stage = stage
+        self.debug_trace = debug_trace
+        self.original = original
 
 
 class LocalGraphChat:
@@ -123,17 +138,35 @@ class LocalGraphChat:
         *,
         perfil_ui: str | None = None,
         rol_usuario: str = "Operador",
+        progress_callback: Callable[[str], None] | None = None,
     ) -> ChatTurn:
+        debug_trace: list[str] = []
+        t0 = time.perf_counter()
+
+        def trace(msg: str) -> None:
+            dt = time.perf_counter() - t0
+            debug_trace.append(f"{dt:7.2f}s | {msg}")
+            if progress_callback:
+                progress_callback(msg)
+
         question = (question or "").strip()
         if not question:
             raise ValueError("La consulta no puede estar vacía.")
 
+        trace("Inicio de consulta")
         schema_block = (
             f"{GRAPH_SCHEMA_FOR_LLM}\n\n"
             f"Ejemplos de patrones:\n{self.graph_client.examples_description()}"
         )
 
-        intencion = self._agente1_interpretar(question, schema_block)
+        try:
+            trace(f"Agente 1 (Intérprete) usando modelo: {self.model_interpreter}")
+            intencion = self._agente1_interpretar(question, schema_block)
+            trace("Agente 1 completado")
+        except Exception as exc:
+            trace(f"Agente 1 falló ({exc}); activando fallback local")
+            intencion = self._fallback_interpretacion(question)
+            trace("Fallback local del Intérprete completado")
 
         # Unificar perfil: UI puede forzar; si no, el modelo propone en JSON
         perfil = (perfil_ui or intencion.get("perfil_usuario") or "no_tecnico").strip()
@@ -151,9 +184,20 @@ class LocalGraphChat:
                 cypher="",
                 rows=[],
                 intencion_json=intencion,
+                debug_trace=debug_trace,
             )
 
-        plan = self._agente2_cypher(question, intencion, rol_usuario)
+        try:
+            trace(f"Agente 2 (Consultor) usando modelo: {self.model_consultant}")
+            plan = self._agente2_cypher(question, intencion, rol_usuario)
+            trace("Agente 2 completado")
+        except Exception as exc:
+            raise PipelineStageError(
+                "Agente 2 — Consultor",
+                str(exc),
+                debug_trace,
+                original=exc,
+            ) from exc
         cypher = plan.get("cypher") or ""
         params = plan.get("params") or {}
 
@@ -164,10 +208,13 @@ class LocalGraphChat:
                 cypher="",
                 rows=[],
                 intencion_json=intencion,
+                debug_trace=debug_trace,
             )
 
         try:
+            trace("Neo4j execute_read_query")
             query_result = self.graph_client.execute_read_query(cypher, params)
+            trace(f"Neo4j completado ({len(query_result.records)} filas)")
         except ValueError as exc:
             return ChatTurn(
                 user_message=question,
@@ -175,15 +222,36 @@ class LocalGraphChat:
                 cypher=cypher,
                 rows=[],
                 intencion_json=intencion,
+                debug_trace=debug_trace,
             )
+        except Exception as exc:
+            raise PipelineStageError(
+                "Neo4j",
+                str(exc),
+                debug_trace,
+                original=exc,
+            ) from exc
 
-        answer = self._agente3_redactar(question, intencion, query_result, rol_usuario)
+        try:
+            trace(f"Agente 3 (Redactor) usando modelo: {self.model_redactor}")
+            answer = self._agente3_redactar(question, intencion, query_result, rol_usuario)
+            trace("Agente 3 completado")
+        except Exception as exc:
+            raise PipelineStageError(
+                "Agente 3 — Redactor",
+                str(exc),
+                debug_trace,
+                original=exc,
+            ) from exc
+
+        trace("Consulta finalizada")
         return ChatTurn(
             user_message=question,
             answer=answer,
             cypher=query_result.cypher,
             rows=query_result.records,
             intencion_json=intencion,
+            debug_trace=debug_trace,
         )
 
     def _agente1_interpretar(self, question: str, schema_block: str) -> dict[str, Any]:
@@ -191,8 +259,80 @@ class LocalGraphChat:
             {"role": "system", "content": INTERPRETER_SYSTEM_PROMPT + "\n\n" + schema_block},
             {"role": "user", "content": f"Pregunta del usuario:\n{question}"},
         ]
-        raw = self.ollama_client.chat_json(messages, model=self.model_interpreter)
+        raw = self.ollama_client.chat_json(
+            messages,
+            model=self.model_interpreter,
+            options={"num_predict": OLLAMA_NUM_PREDICT_JSON},
+        )
         return self._normalize_intencion(raw)
+
+    def _fallback_interpretacion(self, question: str) -> dict[str, Any]:
+        """Fallback determinista para modelos que no entregan JSON en Agente 1."""
+        q = question.strip()
+        ql = q.lower()
+
+        categoria = None
+        if "homicid" in ql:
+            categoria = "Homicidio"
+        elif "hostig" in ql:
+            categoria = "Hostigamiento"
+        elif "dron" in ql:
+            categoria = "Ataque con Dron"
+        elif "secuest" in ql:
+            categoria = "Secuestro"
+        elif "protest" in ql or "bloqueo" in ql:
+            categoria = "Acción de Protesta"
+
+        if any(k in ql for k in ["cuánt", "cuanto", "cuantos", "total", "número", "numero"]):
+            intencion = "conteo"
+        elif any(k in ql for k in ["top", "ranking", "más", "mas"]):
+            intencion = "ranking"
+        elif any(k in ql for k in ["list", "muéstra", "muestra", "dame"]):
+            intencion = "listado"
+        else:
+            intencion = "resumen"
+
+        ubic_match = re.search(
+            r"\b(popayán|popayan|toribío|toribio|corinto|buenos aires|jambaló|jambalo)\b",
+            ql,
+        )
+        ubicacion = {"nombre": None, "nivel": None}
+        if ubic_match:
+            nombre = ubic_match.group(1)
+            nombre = (
+                nombre.replace("popayan", "Popayán")
+                .replace("toribio", "Toribío")
+                .replace("jambalo", "Jambaló")
+            )
+            ubicacion = {"nombre": nombre.title() if " " in nombre else nombre, "nivel": "MUNICIPIO"}
+
+        periodo = {"desde": None, "hasta": None}
+        year_match = re.search(r"\b(20\d{2})\b", ql)
+        if year_match:
+            yy = year_match.group(1)
+            periodo = {"desde": f"{yy}-01-01", "hasta": f"{yy}-12-31"}
+        elif "hoy" in ql or "actual" in ql:
+            periodo = {"desde": None, "hasta": "hoy"}
+
+        aclaracion = ubicacion["nombre"] is None and intencion in {"conteo", "ranking", "listado"}
+        pregunta = (
+            "¿En qué municipio o zona te interesa consultar?"
+            if aclaracion
+            else None
+        )
+
+        return self._normalize_intencion(
+            {
+                "intencion": intencion,
+                "categoria": categoria,
+                "ubicacion": ubicacion,
+                "periodo": periodo,
+                "perfil_usuario": "no_tecnico",
+                "filtros_adicionales": {},
+                "aclaracion_requerida": aclaracion,
+                "pregunta_aclaracion": pregunta,
+            }
+        )
 
     @staticmethod
     def _normalize_intencion(data: dict[str, Any]) -> dict[str, Any]:
@@ -226,7 +366,11 @@ class LocalGraphChat:
             {"role": "system", "content": CONSULTANT_SYSTEM_PROMPT},
             {"role": "user", "content": user_msg},
         ]
-        return self.ollama_client.chat_json(messages, model=self.model_consultant)
+        return self.ollama_client.chat_json(
+            messages,
+            model=self.model_consultant,
+            options={"num_predict": OLLAMA_NUM_PREDICT_JSON},
+        )
 
     def _agente3_redactar(
         self,
@@ -247,4 +391,8 @@ class LocalGraphChat:
             {"role": "system", "content": _redactor_system_prompt()},
             {"role": "user", "content": user_msg},
         ]
-        return self.ollama_client.chat(messages, model=self.model_redactor)
+        return self.ollama_client.chat(
+            messages,
+            model=self.model_redactor,
+            options={"num_predict": OLLAMA_NUM_PREDICT_TEXT},
+        )

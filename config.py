@@ -13,6 +13,10 @@ load_dotenv()  # carga .env si existe (entorno local)
 # ─── OpenAI ──────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
 
+# ─── Proveedor LLM ────────────────────────────────────────────────────────────
+# "ollama" (local) o "groq" (cloud)
+LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "ollama").strip().lower()
+
 # ─── Ollama local (Vigía Cauca — pipeline de 3 agentes, ver CONTEXTO.md) ─────
 OLLAMA_BASE_URL: str = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 # Retrocompatibilidad: si solo defines OLLAMA_CHAT_MODEL, los tres agentes lo usan (p. ej. RAM < 16 GB).
@@ -22,6 +26,13 @@ OLLAMA_MODEL_INTERPRETER: str = os.environ.get("OLLAMA_MODEL_INTERPRETER", OLLAM
 OLLAMA_MODEL_CONSULTANT: str = os.environ.get("OLLAMA_MODEL_CONSULTANT", "qwen3.5:27b")
 OLLAMA_MODEL_REDACTOR: str = os.environ.get("OLLAMA_MODEL_REDACTOR", OLLAMA_CHAT_MODEL)
 OLLAMA_TEMPERATURE: float = float(os.environ.get("OLLAMA_TEMPERATURE", "0.2"))
+OLLAMA_TIMEOUT_SECONDS: int = int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "300"))
+OLLAMA_NUM_PREDICT_JSON: int = int(os.environ.get("OLLAMA_NUM_PREDICT_JSON", "220"))
+OLLAMA_NUM_PREDICT_TEXT: int = int(os.environ.get("OLLAMA_NUM_PREDICT_TEXT", "420"))
+
+# ─── Groq (API compatible con OpenAI) ────────────────────────────────────────
+GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
+GROQ_BASE_URL: str = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 
 # ─── Neo4j local ─────────────────────────────────────────────────────────────
 NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")

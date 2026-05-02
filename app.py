@@ -6,10 +6,11 @@ from pathlib import Path
 import streamlit as st
 
 from config import (
+    LLM_PROVIDER,
     NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_URI,
     NEO4J_USERNAME, OLLAMA_BASE_URL, OLLAMA_CHAT_MODEL,
 )
-from src.local_chat import LocalGraphChat
+from src.local_chat import LocalGraphChat, PipelineStageError
 from src.neo4j_graph import Neo4jGraphClient
 from src.ollama_client import OllamaClient
 
@@ -287,7 +288,19 @@ if client:
         conn_error = str(e)
         err = conn_error.lower()
         neo4j_ok  = not any(k in err for k in ["neo4j", "bolt", "7687", "serviceunavailable", "authentication"])
-        ollama_ok = not any(k in err for k in ["ollama", "11434", "connection refused", "connectionerror"])
+        ollama_ok = not any(
+            k in err
+            for k in [
+                "ollama",
+                "11434",
+                "connection refused",
+                "connectionerror",
+                "groq",
+                "401",
+                "403",
+                "gsk_",
+            ]
+        )
 
 
 def pill(label, ok):
@@ -297,8 +310,9 @@ def pill(label, ok):
 
 status_col, btn_col = st.columns([6, 1])
 with status_col:
+    llm_label = "Groq" if LLM_PROVIDER == "groq" else "Ollama"
     st.markdown(
-        f'<div class="vg-status">{pill("Neo4j", neo4j_ok)}{pill("Ollama", ollama_ok)}</div>',
+        f'<div class="vg-status">{pill("Neo4j", neo4j_ok)}{pill(llm_label, ollama_ok)}</div>',
         unsafe_allow_html=True,
     )
 with btn_col:
@@ -415,6 +429,9 @@ for msg in st.session_state.messages:
             if msg.get("intencion"):
                 with st.expander("⬡ JSON de intención (Agente 1)"):
                     st.json(msg["intencion"])
+            if msg.get("debug_trace"):
+                with st.expander("⬡ Trazas de ejecución"):
+                    st.code("\n".join(msg["debug_trace"]), language="text")
 
 
 # ── Procesador central de consultas ──────────────────────────────────────────
@@ -431,12 +448,18 @@ def process_query(prompt: str):
             st.session_state.messages.append({"role": "assistant", "content": resp})
         else:
             with st.spinner("Analizando consulta…"):
+                progress_box = st.empty()
                 try:
+                    def on_progress(msg: str) -> None:
+                        progress_box.info(f"Estado: {msg}")
+
                     result = client.ask(
                         prompt,
                         perfil_ui=st.session_state.perfil_ui,
                         rol_usuario=st.session_state.rol_usuario,
+                        progress_callback=on_progress,
                     )
+                    progress_box.empty()
                     st.markdown(result.answer)
                     if result.cypher:
                         with st.expander("⬡ Ver consulta Cypher ejecutada"):
@@ -447,14 +470,41 @@ def process_query(prompt: str):
                     if result.intencion_json:
                         with st.expander("⬡ JSON de intención (Agente 1)"):
                             st.json(result.intencion_json)
+                    if result.debug_trace:
+                        with st.expander("⬡ Trazas de ejecución"):
+                            st.code("\n".join(result.debug_trace), language="text")
                     st.session_state.messages.append({
                         "role": "assistant",
                         "content": result.answer,
                         "cypher": result.cypher,
                         "rows": result.rows,
                         "intencion": result.intencion_json,
+                        "debug_trace": result.debug_trace,
+                    })
+                except PipelineStageError as e:
+                    progress_box.empty()
+                    posibles = [
+                        "Timeout en Ollama (consulta larga o modelo saturado en RAM/CPU).",
+                        "Modelo no cargado o nombre incorrecto en .env (`OLLAMA_MODEL_*`).",
+                        "Ollama no responde / desconexión local en `http://localhost:11434`.",
+                        "Salida no-JSON del modelo en Agente 1 o Agente 2.",
+                        "Cypher inválido o bloqueado por reglas de seguridad.",
+                        "Error de ejecución en Neo4j (credenciales, base o consulta).",
+                    ]
+                    err_msg = f"❌ **Error en etapa:** `{e.stage}`\n\n**Detalle:** `{e}`"
+                    st.markdown(err_msg)
+                    with st.expander("⬡ Trazas de ejecución"):
+                        st.code("\n".join(e.debug_trace), language="text")
+                    with st.expander("⬡ Posibles excepciones a revisar"):
+                        for item in posibles:
+                            st.markdown(f"- {item}")
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": err_msg,
+                        "debug_trace": e.debug_trace,
                     })
                 except Exception as e:
+                    progress_box.empty()
                     err_msg = f"❌ **Error:** `{e}`"
                     st.markdown(err_msg)
                     st.session_state.messages.append({"role": "assistant", "content": err_msg})
