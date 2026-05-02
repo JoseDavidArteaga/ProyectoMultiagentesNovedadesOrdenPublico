@@ -13,9 +13,14 @@ load_dotenv()  # carga .env si existe (entorno local)
 # ─── OpenAI ──────────────────────────────────────────────────────────────────
 OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
 
-# ─── Ollama local ────────────────────────────────────────────────────────────
+# ─── Ollama local (Vigía Cauca — pipeline de 3 agentes, ver CONTEXTO.md) ─────
 OLLAMA_BASE_URL: str = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_CHAT_MODEL: str = os.environ.get("OLLAMA_CHAT_MODEL", "llama3.1:8b")
+# Retrocompatibilidad: si solo defines OLLAMA_CHAT_MODEL, los tres agentes lo usan (p. ej. RAM < 16 GB).
+OLLAMA_CHAT_MODEL: str = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3.5:9b")
+OLLAMA_MODEL_INTERPRETER: str = os.environ.get("OLLAMA_MODEL_INTERPRETER", OLLAMA_CHAT_MODEL)
+# Consultor es el más exigente (Cypher); por defecto 27b si no se define (CONTEXTO §9).
+OLLAMA_MODEL_CONSULTANT: str = os.environ.get("OLLAMA_MODEL_CONSULTANT", "qwen3.5:27b")
+OLLAMA_MODEL_REDACTOR: str = os.environ.get("OLLAMA_MODEL_REDACTOR", OLLAMA_CHAT_MODEL)
 OLLAMA_TEMPERATURE: float = float(os.environ.get("OLLAMA_TEMPERATURE", "0.2"))
 
 # ─── Neo4j local ─────────────────────────────────────────────────────────────
@@ -23,7 +28,7 @@ NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USERNAME: str = os.environ.get("NEO4J_USERNAME", "neo4j")
 NEO4J_PASSWORD: str = os.environ.get("NEO4J_PASSWORD", "")
 NEO4J_DATABASE: str = os.environ.get("NEO4J_DATABASE", "neo4j")
-NEO4J_MAX_RESULTS: int = int(os.environ.get("NEO4J_MAX_RESULTS", "20"))
+NEO4J_MAX_RESULTS: int = int(os.environ.get("NEO4J_MAX_RESULTS", "100"))
 
 # Modelos
 EMBEDDING_MODEL: str = "text-embedding-3-large"
@@ -62,7 +67,7 @@ MUNICIPIOS_CAUCA: list[str] = [
     "Totoró", "Villa Rica",
 ]
 
-# ─── Categorías de hechos ─────────────────────────────────────────────────────
+# ─── Categorías de hechos (Excel / legacy — hojas y códigos internos) ────────
 CATEGORIAS_HECHO: list[str] = [
     "ENFRENTAMIENTO",
     "CONFRONTACION",
@@ -75,4 +80,19 @@ CATEGORIAS_HECHO: list[str] = [
     "RETEN_ILEGAL",
     "PROTESTA_SOCIAL",
     "OTRO",
+]
+
+# ─── Categorías NOVEDAD en Neo4j (CONTEXTO §3.1 — valores en la propiedad categoria)
+CATEGORIAS_NOVEDAD_NEO4J: list[str] = [
+    "Enfrentamiento",
+    "Hostigamiento",
+    "Atentado Terrorista",
+    "Ataque con Dron",
+    "Homicidio",
+    "Secuestro",
+    "Retén Ilegal",
+    "Reclutamiento Ilícito",
+    "Acción de Protesta",
+    "Hallazgo de Material",
+    "Otro",
 ]

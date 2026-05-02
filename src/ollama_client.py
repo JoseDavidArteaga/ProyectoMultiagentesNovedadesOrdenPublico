@@ -18,16 +18,21 @@ class OllamaClient:
         temperature: float = OLLAMA_TEMPERATURE,
     ) -> None:
         self.base_url = base_url.rstrip("/")
-        self.model = model
+        self.model = model  # modelo por defecto; cada llamada puede usar otro con `model=`
         self.temperature = temperature
 
     def ping(self) -> None:
         response = requests.get(f"{self.base_url}/api/tags", timeout=10)
         response.raise_for_status()
 
-    def chat(self, messages: list[dict[str, str]], format: str | None = None) -> str:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        format: str | None = None,
+        model: str | None = None,
+    ) -> str:
         payload: dict[str, Any] = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": messages,
             "stream": False,
             "options": {"temperature": self.temperature},
@@ -40,8 +45,8 @@ class OllamaClient:
         data = response.json()
         return data["message"]["content"].strip()
 
-    def chat_json(self, messages: list[dict[str, str]]) -> dict[str, Any]:
-        raw = self.chat(messages, format="json")
+    def chat_json(self, messages: list[dict[str, str]], model: str | None = None) -> dict[str, Any]:
+        raw = self.chat(messages, format="json", model=model)
         return self._parse_json(raw)
 
     @staticmethod

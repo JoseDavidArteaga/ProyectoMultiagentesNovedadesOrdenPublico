@@ -156,7 +156,7 @@ st.markdown("""
     <div class="team-avatar">CU</div>
     <div>
       <div class="team-name">Cristhian Camilo Unas Ocaña</div>
-      <div class="team-role">Agentes · Ollama · RAG</div>
+      <div class="team-role">Agentes · Ollama · Neo4j</div>
     </div>
     <div class="team-links">
       <a class="team-link" href="mailto:cunas@unicauca.edu.co">✉ Email</a>

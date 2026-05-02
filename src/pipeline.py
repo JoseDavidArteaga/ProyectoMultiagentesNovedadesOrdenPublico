@@ -1,8 +1,10 @@
 """
-src/pipeline.py — Orquestador del sistema multiagente.
+src/pipeline.py — Orquestador histórico basado en RAG + OpenAI (recuperador / generador / verificador).
 
-Coordina los tres agentes en secuencia:
-  Consulta → Agente 1 (Recuperador) → Agente 2 (Generador) → Agente 3 (Verificador) → Reporte final
+La aplicación Streamlit y el flujo descrito en CONTEXTO.md usan **Neo4j + Ollama** sin embeddings:
+ver `src/local_chat.py` (Intérprete → Consultor Cypher → Redactor).
+
+Este módulo se mantiene por si necesitas experimentos con vector store y GPT; no es la ruta principal de Vigía Cauca.
 """
 
 import os

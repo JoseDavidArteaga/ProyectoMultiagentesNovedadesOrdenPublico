@@ -235,6 +235,7 @@ st.markdown("""
   </div>
   <nav class="vg-nav">
     <a href="/" class="nav-active" target="_self">Chat</a>
+    <a href="/Agentes" target="_self">Agentes</a>
     <a href="/Equipo" target="_self">Equipo</a>
   </nav>
 </div>
@@ -269,6 +270,10 @@ if "messages" not in st.session_state:
 if "chip_query" not in st.session_state:
     st.session_state.chip_query = None
 
+# Perfil / rol: valores por defecto (los selectbox usan la misma clave en session_state)
+st.session_state.setdefault("perfil_ui", "no_tecnico")
+st.session_state.setdefault("rol_usuario", "Operador")
+
 # ── Connection check ──────────────────────────────────────────────────────────
 client, init_err = get_client()
 neo4j_ok, ollama_ok = False, False
@@ -301,6 +306,21 @@ with btn_col:
         get_client.clear()
         st.rerun()
 
+with st.expander("Perfil del informe y rol de usuario", expanded=False):
+    st.selectbox(
+        "Tono del informe",
+        options=["no_tecnico", "tecnico"],
+        format_func=lambda x: "No técnico (lenguaje claro)" if x == "no_tecnico" else "Técnico (detalle territorial)",
+        key="perfil_ui",
+        help="Definido en CONTEXTO.md como perfil_usuario para el Agente 3 (Redactor).",
+    )
+    st.selectbox(
+        "Rol en la plataforma",
+        options=["Visitante", "Operador", "Administrador"],
+        key="rol_usuario",
+        help="Si el rol es Visitante, el Agente 2 excluye novedades con visibilidad Privado.",
+    )
+
 if conn_error and not (neo4j_ok and ollama_ok):
     with st.expander("⬡ Ver detalle del error de conexión"):
         st.code(conn_error, language="text")
@@ -319,7 +339,7 @@ if not st.session_state.messages:
     <div class="vg-welcome">
       <h1>🛡️ Sistema de Análisis de Orden Público</h1>
       <p>Consulta en lenguaje natural sobre los hechos de seguridad del departamento del Cauca.
-      El sistema genera reportes automáticamente a partir de la base de conocimiento.</p>
+      Tres agentes (Intérprete, Consultor Cypher, Redactor) consultan Neo4j y redactan el informe.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -392,6 +412,9 @@ for msg in st.session_state.messages:
             if msg.get("rows"):
                 with st.expander(f"⬡ Ver datos crudos · {len(msg['rows'])} registros"):
                     st.json(msg["rows"])
+            if msg.get("intencion"):
+                with st.expander("⬡ JSON de intención (Agente 1)"):
+                    st.json(msg["intencion"])
 
 
 # ── Procesador central de consultas ──────────────────────────────────────────
@@ -409,7 +432,11 @@ def process_query(prompt: str):
         else:
             with st.spinner("Analizando consulta…"):
                 try:
-                    result = client.ask(prompt)
+                    result = client.ask(
+                        prompt,
+                        perfil_ui=st.session_state.perfil_ui,
+                        rol_usuario=st.session_state.rol_usuario,
+                    )
                     st.markdown(result.answer)
                     if result.cypher:
                         with st.expander("⬡ Ver consulta Cypher ejecutada"):
@@ -417,11 +444,15 @@ def process_query(prompt: str):
                     if result.rows:
                         with st.expander(f"⬡ Ver datos crudos · {len(result.rows)} registros"):
                             st.json(result.rows)
+                    if result.intencion_json:
+                        with st.expander("⬡ JSON de intención (Agente 1)"):
+                            st.json(result.intencion_json)
                     st.session_state.messages.append({
                         "role": "assistant",
                         "content": result.answer,
                         "cypher": result.cypher,
                         "rows": result.rows,
+                        "intencion": result.intencion_json,
                     })
                 except Exception as e:
                     err_msg = f"❌ **Error:** `{e}`"

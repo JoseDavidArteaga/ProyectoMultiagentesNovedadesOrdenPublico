@@ -8,6 +8,7 @@ from typing import Any
 from neo4j import GraphDatabase
 
 from config import NEO4J_DATABASE, NEO4J_MAX_RESULTS, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USERNAME
+from src.vigia_schema import GRAPH_SCHEMA_FOR_LLM
 
 
 FORBIDDEN_KEYWORDS = {
@@ -59,17 +60,8 @@ class Neo4jGraphClient:
         return QueryResult(cypher=normalized, records=records)
 
     def schema_description(self) -> str:
-        return (
-            "Nodos principales: NOVEDAD, ACTOR, USUARIO, MUNICIPIO, COMUNA, BARRIO, "
-            "CORREGIMIENTO, VEREDA, SECTOR, TERRITORIO_INDIGENA, VICTIMA, AFECTACION_HUMANA.\n"
-            "Relaciones clave: (ACTOR)-[:PARTICIPA_EN]->(NOVEDAD), "
-            "(USUARIO)-[:REPORTA]->(NOVEDAD), (NOVEDAD)-[:OCURRE_EN]->(ubicacion), "
-            "(NOVEDAD)-[:GENERA]->(AFECTACION_HUMANA), (ubicacion_padre)-[:CONTIENE]->(ubicacion_hija).\n"
-            "Propiedades frecuentes de NOVEDAD: id, categoria, descripcion, fecha, hora, "
-            "nivel_confianza, visibilidad, fuente, creado_en.\n"
-            "Propiedades frecuentes de ACTOR: id, nombre, tipo.\n"
-            "Propiedades frecuentes de MUNICIPIO y nodos de lugar: id, nombre."
-        )
+        """Resumen canónico Vigía Cauca v2 (CONTEXTO.md)."""
+        return GRAPH_SCHEMA_FOR_LLM
 
     def examples_description(self) -> str:
         return (
