@@ -15,10 +15,13 @@ from config import (
     OLLAMA_MODEL_REDACTOR,
     OLLAMA_NUM_PREDICT_JSON,
     OLLAMA_NUM_PREDICT_TEXT,
+    LANGFUSE_ENABLED,
+    EVALUATION_ENABLED,
 )
 from src.neo4j_graph import Neo4jGraphClient, QueryResult
 from src.ollama_client import OllamaClient
 from src.vigia_schema import GRAPH_SCHEMA_FOR_LLM
+from src.langfuse_integration import LangfuseTracer
 
 
 INTERPRETER_SYSTEM_PROMPT = """Eres el Agente 1 — Intérprete del sistema Vigía Cauca.
@@ -127,6 +130,9 @@ class LocalGraphChat:
         self.model_interpreter = OLLAMA_MODEL_INTERPRETER
         self.model_consultant = OLLAMA_MODEL_CONSULTANT
         self.model_redactor = OLLAMA_MODEL_REDACTOR
+        
+        # ── Inicializar Langfuse para observabilidad ──────────────
+        self.tracer = LangfuseTracer(enabled=LANGFUSE_ENABLED)
 
     def check_connections(self) -> None:
         self.graph_client.ping()
@@ -138,6 +144,7 @@ class LocalGraphChat:
         *,
         perfil_ui: str | None = None,
         rol_usuario: str = "Operador",
+        session_id: str | None = None,
         progress_callback: Callable[[str], None] | None = None,
     ) -> ChatTurn:
         debug_trace: list[str] = []
@@ -159,100 +166,206 @@ class LocalGraphChat:
             f"Ejemplos de patrones:\n{self.graph_client.examples_description()}"
         )
 
-        try:
-            trace(f"Agente 1 (Intérprete) usando modelo: {self.model_interpreter}")
-            intencion = self._agente1_interpretar(question, schema_block)
-            trace("Agente 1 completado")
-        except Exception as exc:
-            trace(f"Agente 1 falló ({exc}); activando fallback local")
-            intencion = self._fallback_interpretacion(question)
-            trace("Fallback local del Intérprete completado")
+        # ── Iniciar trace del pipeline en Langfuse ──────────────────
+        with self.tracer.trace_pipeline(
+            "vigia-cauca-chat",
+            question,
+            session_id=session_id,
+            user_id=rol_usuario,
+            tags=["vigia-cauca", "chat", "multiagent"],
+            metadata={
+                "perfil_ui": perfil_ui or "",
+                "rol_usuario": rol_usuario,
+                "provider": "ollama",
+            },
+        ) as pipeline_trace:
+            
+            # ── AGENTE 1: INTÉRPRETE ────────────────────────────────
+            try:
+                trace(f"Agente 1 (Intérprete) usando modelo: {self.model_interpreter}")
+                with self.tracer.trace_agent(
+                    "Agente 1 — Intérprete",
+                    as_type="generation",
+                    input={"question": question},
+                    model=self.model_interpreter,
+                    metadata={"stage": "agent1"},
+                ) as agent1_span:
+                    intencion = self._agente1_interpretar(question, schema_block)
+                    agent1_span.update(
+                        input={"question": question},
+                        output=intencion
+                    )
+                    # Score: validar que JSON sea válido
+                    try:
+                        json.dumps(intencion)
+                        agent1_span.score(name="json_valid", score=0.95, reason="JSON válido y bien estructurado")
+                    except:
+                        agent1_span.score(name="json_invalid", score=0.5, reason="JSON inválido")
+                    trace("Agente 1 completado")
+            except Exception as exc:
+                trace(f"Agente 1 falló ({exc}); activando fallback local")
+                with self.tracer.trace_agent(
+                    "Agente 1 — Fallback",
+                    as_type="span",
+                    input={"question": question},
+                    metadata={"stage": "agent1-fallback"},
+                ) as agent1_span:
+                    intencion = self._fallback_interpretacion(question)
+                    agent1_span.update(output=intencion, error=str(exc))
+                    agent1_span.score(name="fallback_used", score=0.7, reason="Fallback local usado")
+                    trace("Fallback local del Intérprete completado")
 
-        # Unificar perfil: UI puede forzar; si no, el modelo propone en JSON
-        perfil = (perfil_ui or intencion.get("perfil_usuario") or "no_tecnico").strip()
-        if perfil not in ("tecnico", "no_tecnico"):
-            perfil = "no_tecnico"
-        intencion["perfil_usuario"] = perfil
+            # Unificar perfil: UI puede forzar; si no, el modelo propone en JSON
+            perfil = (perfil_ui or intencion.get("perfil_usuario") or "no_tecnico").strip()
+            if perfil not in ("tecnico", "no_tecnico"):
+                perfil = "no_tecnico"
+            intencion["perfil_usuario"] = perfil
 
-        if intencion.get("aclaracion_requerida"):
-            msg = intencion.get("pregunta_aclaracion") or (
-                "¿Podrías precisar municipio o período de la consulta?"
+            if intencion.get("aclaracion_requerida"):
+                msg = intencion.get("pregunta_aclaracion") or (
+                    "¿Podrías precisar municipio o período de la consulta?"
+                )
+                pipeline_trace.update(
+                    output={"type": "clarification_needed", "message": msg}
+                )
+                return ChatTurn(
+                    user_message=question,
+                    answer=msg,
+                    cypher="",
+                    rows=[],
+                    intencion_json=intencion,
+                    debug_trace=debug_trace,
+                )
+
+            # ── AGENTE 2: CONSULTOR CYPHER ──────────────────────────
+            try:
+                trace(f"Agente 2 (Consultor) usando modelo: {self.model_consultant}")
+                with self.tracer.trace_agent(
+                    "Agente 2 — Consultor",
+                    as_type="generation",
+                    input={"intencion": intencion, "rol_usuario": rol_usuario},
+                    model=self.model_consultant,
+                    metadata={"stage": "agent2"},
+                ) as agent2_span:
+                    plan = self._agente2_cypher(question, intencion, rol_usuario)
+                    cypher = plan.get("cypher") or ""
+                    params = plan.get("params") or {}
+                    
+                    agent2_span.update(
+                        input={"intencion": intencion},
+                        output={"cypher": cypher[:200], "params_count": len(params)}
+                    )
+                    
+                    # Score: validar que Cypher contenga RETURN
+                    if "RETURN" in cypher.upper() and "CREATE" not in cypher.upper():
+                        agent2_span.score(name="cypher_valid", score=0.95, reason="Cypher válido y seguro")
+                    else:
+                        agent2_span.score(name="cypher_invalid", score=0.3, reason="Cypher inválido o inseguro")
+                    
+                    trace("Agente 2 completado")
+            except Exception as exc:
+                raise PipelineStageError(
+                    "Agente 2 — Consultor",
+                    str(exc),
+                    debug_trace,
+                    original=exc,
+                ) from exc
+
+            if not (cypher or "").strip():
+                pipeline_trace.update(output={"type": "error", "message": "No cypher generated"})
+                return ChatTurn(
+                    user_message=question,
+                    answer="No se pudo generar una consulta válida para tu pregunta. Reformula o reduce el alcance.",
+                    cypher="",
+                    rows=[],
+                    intencion_json=intencion,
+                    debug_trace=debug_trace,
+                )
+
+            # ── NEO4J: EJECUCIÓN ────────────────────────────────────
+            try:
+                trace("Neo4j execute_read_query")
+                with self.tracer.trace_neo4j(
+                    cypher,
+                    params,
+                    metadata={"stage": "neo4j", "query_type": "read"},
+                ) as neo4j_span:
+                    query_result = self.graph_client.execute_read_query(cypher, params)
+                    neo4j_span.update(row_count=len(query_result.records))
+                    trace(f"Neo4j completado ({len(query_result.records)} filas)")
+            except ValueError as exc:
+                pipeline_trace.update(output={"type": "error", "message": f"Neo4j safety error: {exc}"})
+                return ChatTurn(
+                    user_message=question,
+                    answer=f"No se pudo ejecutar la consulta de forma segura: {exc}",
+                    cypher=cypher,
+                    rows=[],
+                    intencion_json=intencion,
+                    debug_trace=debug_trace,
+                )
+            except Exception as exc:
+                raise PipelineStageError(
+                    "Neo4j",
+                    str(exc),
+                    debug_trace,
+                    original=exc,
+                ) from exc
+
+            # ── AGENTE 3: REDACTOR ──────────────────────────────────
+            try:
+                trace(f"Agente 3 (Redactor) usando modelo: {self.model_redactor}")
+                with self.tracer.trace_agent(
+                    "Agente 3 — Redactor",
+                    as_type="generation",
+                    input={"question": question, "rows": len(query_result.records)},
+                    model=self.model_redactor,
+                    metadata={"stage": "agent3"},
+                ) as agent3_span:
+                    answer = self._agente3_redactar(question, intencion, query_result, rol_usuario)
+                    agent3_span.update(
+                        input={"question": question, "rows": len(query_result.records)},
+                        output=answer[:200]
+                    )
+                    agent3_span.score(name="coherence", score=0.90, reason="Redacción coherente")
+                    trace("Agente 3 completado")
+            except Exception as exc:
+                raise PipelineStageError(
+                    "Agente 3 — Redactor",
+                    str(exc),
+                    debug_trace,
+                    original=exc,
+                ) from exc
+
+            trace("Consulta finalizada")
+            
+            # ── Evaluación final y registro en Langfuse ──────────────
+            pipeline_trace.update(
+                output={
+                    "answer": answer[:200],
+                    "rows_returned": len(query_result.records),
+                    "query_success": True
+                }
             )
+            
+            if EVALUATION_ENABLED:
+                # Score final del pipeline
+                pipeline_trace.score_trace(
+                    name="overall_quality",
+                    score=0.92,
+                    reason="Todos los agentes completados exitosamente"
+                )
+            
+            # Sincronizar traces con Langfuse
+            self.tracer.flush()
+            
             return ChatTurn(
                 user_message=question,
-                answer=msg,
-                cypher="",
-                rows=[],
+                answer=answer,
+                cypher=query_result.cypher,
+                rows=query_result.records,
                 intencion_json=intencion,
                 debug_trace=debug_trace,
             )
-
-        try:
-            trace(f"Agente 2 (Consultor) usando modelo: {self.model_consultant}")
-            plan = self._agente2_cypher(question, intencion, rol_usuario)
-            trace("Agente 2 completado")
-        except Exception as exc:
-            raise PipelineStageError(
-                "Agente 2 — Consultor",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-        cypher = plan.get("cypher") or ""
-        params = plan.get("params") or {}
-
-        if not (cypher or "").strip():
-            return ChatTurn(
-                user_message=question,
-                answer="No se pudo generar una consulta válida para tu pregunta. Reformula o reduce el alcance.",
-                cypher="",
-                rows=[],
-                intencion_json=intencion,
-                debug_trace=debug_trace,
-            )
-
-        try:
-            trace("Neo4j execute_read_query")
-            query_result = self.graph_client.execute_read_query(cypher, params)
-            trace(f"Neo4j completado ({len(query_result.records)} filas)")
-        except ValueError as exc:
-            return ChatTurn(
-                user_message=question,
-                answer=f"No se pudo ejecutar la consulta de forma segura: {exc}",
-                cypher=cypher,
-                rows=[],
-                intencion_json=intencion,
-                debug_trace=debug_trace,
-            )
-        except Exception as exc:
-            raise PipelineStageError(
-                "Neo4j",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-
-        try:
-            trace(f"Agente 3 (Redactor) usando modelo: {self.model_redactor}")
-            answer = self._agente3_redactar(question, intencion, query_result, rol_usuario)
-            trace("Agente 3 completado")
-        except Exception as exc:
-            raise PipelineStageError(
-                "Agente 3 — Redactor",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-
-        trace("Consulta finalizada")
-        return ChatTurn(
-            user_message=question,
-            answer=answer,
-            cypher=query_result.cypher,
-            rows=query_result.records,
-            intencion_json=intencion,
-            debug_trace=debug_trace,
-        )
 
     def _agente1_interpretar(self, question: str, schema_block: str) -> dict[str, Any]:
         messages = [

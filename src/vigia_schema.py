@@ -4,50 +4,64 @@ Fuente de verdad: CONTEXTO.md y data/raw/vigia_cauca_neo4j.cypher
 """
 
 GRAPH_SCHEMA_FOR_LLM = """
-## Nodos y propiedades (Vigía Cauca v2)
+## Nodos y propiedades (Vigía Cauca — esquema real según .cypher)
 
-### NOVEDAD
-- id (STRING), descripcion (STRING), fecha (DATE date("YYYY-MM-DD")), hora (TIME time("HH:MM:SS")),
-  fuente (STRING), creado_en (DATETIME)
-- categoria (ENUM): Enfrentamiento | Hostigamiento | Atentado Terrorista | Ataque con Dron |
-  Homicidio | Secuestro | Retén Ilegal | Reclutamiento Ilícito | Acción de Protesta |
-  Hallazgo de Material | Otro
-- nivel_confianza (ENUM): Confirmado | Preliminar | En verificación | No confirmado
-- visibilidad (ENUM): Público | Privado   ← el campo se llama "visibilidad", NO "nivel_visibilidad"
+### HECHO
+- id (STRING): Identificador único del evento (p.ej. 'EVT_20240117_TORIBIO_01')
+- fecha (DATE): Formato date('YYYY-MM-DD')
+- descripcion (STRING): Descripción del hecho
 
-### VICTIMA
-- id, nombre, edad, genero (Masculino|Femenino|LGBTI+|No especificado),
-  grupo_poblacional (Campesino/a|Indígena|Afrocolombiano/a|Niño|Adolescente|Adulto|Adulto Mayor|Discapacidad|Ninguno / No especificado),
-  condicion (STRING)
+### Categoría
+- nombre (ENUM): 
+  'Enfrentamiento', 'Hostigamiento', 'Atentado Terrorista', 'Ataque con Dron',
+  'Homicidio', 'Secuestro', 'Retén Ilegal', 'Reclutamiento Ilícito',
+  'Acción de Protesta', 'Hallazgo de Material', 'Otro'
 
-### AFECTACION_HUMANA
-- id, heridos_civiles, heridos_fuerza_publica, fallecidos_civiles, fallecidos_fuerza_publica,
-  desplazados, reclutamiento_menores_flag (Sí|No|No aplica|En investigación), observaciones
+### Actor
+- nombre (ENUM): 
+  'Fuerza Pública', 'Grupo Armado Organizado', 'ELN', 'Segunda Marquetalia',
+  'Civil / Comunidad', 'No identificado', 'Otro'
 
-### ACTOR
-- id, nombre (ENUM): Fuerza Pública | Grupo Armado Organizado | ELN | Segunda Marquetalia |
-  Civil / Comunidad | No Identificado | Otro
-- tipo (STRING): Institucional | GAO | Civil | Desconocido | Otro
+### Afectacion
+- nombre (ENUM): 'Fallecido', 'Herido', 'Material', 'Desplazamiento', 'Confinamiento', 'Otro'
 
-### USUARIO
-- id, nombre, email, rol (Administrador|Operador|Visitante), activo, creado_en
+### CentroPoblado
+- nombre (STRING): Nombre del centro poblado
+- nombre_municipio (STRING): Nombre del municipio al que pertenece
+- Constraint: (nombre, nombre_municipio) UNIQUE
 
-### Ubicación
-- MUNICIPIO (id, nombre, departamento, area)
-- COMUNA, BARRIO, CORREGIMIENTO, VEREDA, SECTOR, TERRITORIO_INDIGENA (ver CONTEXTO para propiedades)
+### Municipio
+- nombre (STRING): Nombre del municipio
 
-## Relaciones (dirección fija — no invertir)
-- (ACTOR)-[:PARTICIPA_EN {rol: Agresor|Presunto autor|Participante}]->(NOVEDAD)
-- (NOVEDAD)-[:OCURRE_EN]->(lugar)   — lugar = cualquier nivel geográfico
-- (USUARIO)-[:REPORTA {fecha_reporte}]->(NOVEDAD)
-- (NOVEDAD)-[:TIENE_VICTIMA]->(VICTIMA)
-- (NOVEDAD)-[:GENERA]->(AFECTACION_HUMANA)
-- (VICTIMA)-[:REGISTRA]->(AFECTACION_HUMANA)
-- (padre)-[:CONTIENE {tipo: urbano|rural solo desde MUNICIPIO hacia COMUNA/CORREGIMIENTO}]->(hijo)
-- (TERRITORIO_INDIGENA)-[:COMPRENDE]->(VEREDA)
+### MES
+- numero (INTEGER): 1-12
 
-## Jerarquía geográfica
-Para filtrar por municipio, subir/bajar con:
-MATCH (m:MUNICIPIO {nombre: $nombre})-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD)
-SIEMPRE usar CONTIENE*1..4 entre MUNICIPIO y el lugar del hecho.
+### AÑO
+- numero (INTEGER): Año (p.ej. 2024)
+
+## Relaciones (dirección fija)
+- (HECHO)-[:OCURRE_EN]->(CentroPoblado): Dónde ocurrió el hecho
+- (HECHO)-[:EN_MES]->(MES): Mes del evento
+- (HECHO)-[:EN_AÑO]->(AÑO): Año del evento
+- (HECHO)-[:ES_DE]->(Categoria): Categoría del hecho
+- (HECHO)-[:GENERA {cantidad: N}]->(Afectacion): Afectaciones generadas (cantidad numérica)
+- (CentroPoblado)-[:PERTENECE_A]->(Municipio): Relación geográfica
+
+## Patrones de consulta
+
+### Filtrar por municipio y período:
+MATCH (cp:CentroPoblado {nombre_municipio: $municipio})<-[:OCURRE_EN]-(h:HECHO)
+WHERE h.fecha >= date($desde) AND h.fecha <= date($hasta)
+RETURN h
+
+### Contar eventos por categoría en un período:
+MATCH (h:HECHO)-[:ES_DE]->(cat:Categoria)
+WHERE h.fecha >= date($desde) AND h.fecha <= date($hasta)
+  AND cat.nombre = $categoria
+RETURN COUNT(h) AS total
+
+### Obtener eventos y sus afectaciones:
+MATCH (h:HECHO)-[:GENERA]->(af:Afectacion)
+WHERE h.fecha >= date($desde) AND h.fecha <= date($hasta)
+RETURN h.descripcion, af.nombre, COUNT(*) AS cantidad
 """.strip()

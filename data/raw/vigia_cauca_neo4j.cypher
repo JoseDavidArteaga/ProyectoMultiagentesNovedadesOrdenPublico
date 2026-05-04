@@ -1,422 +1,775 @@
 // =============================================================
 // VIGÍA CAUCA — Script Neo4j (Cypher)
-// Bitnova · Dominios v2
 // =============================================================
+
+//
+// Nodos
+//
+
+//
+// Meses
+//
+
+MERGE (m:MES {numero: 1});
+MERGE (m:MES {numero: 2});
+MERGE (m:MES {numero: 3});
+MERGE (m:MES {numero: 4});
+MERGE (m:MES {numero: 5});
+MERGE (m:MES {numero: 6});
+MERGE (m:MES {numero: 7});
+MERGE (m:MES {numero: 8});
+MERGE (m:MES {numero: 9});
+MERGE (m:MES {numero: 10});
+MERGE (m:MES {numero: 11});
+MERGE (m:MES {numero: 12});
+
+//
+// Categorias
+//
+
+// Crear los nodos de las categorías
+UNWIND [
+  'Enfrentamiento', 'Hostigamiento', 'Atentado Terrorista', 
+  'Ataque con Dron', 'Homicidio', 'Secuestro', 'Retén Ilegal', 
+  'Reclutamiento Ilícito', 'Acción de Protesta', 'Hallazgo de Material', 'Otro'
+] AS nombre_cat
+MERGE (c:Categoria {nombre: nombre_cat})
+
+//
+// Actor
+//
+
+UNWIND [
+  'Fuerza Pública',
+  'Grupo Armado Organizado',
+  'ELN',
+  'Segunda Marquetalia',
+  'Civil / Comunidad',
+  'No identificado',
+  'Otro'
+] AS valor
+
+MERGE (a:Actor {nombre: valor});
+
+//
+// Afectacion
+//
+
+UNWIND [
+  'Fallecido',
+  'Herido',
+  'Material',
+  'Desplazamiento',
+  'Confinamiento',
+  'Otro'
+] AS valor
+
+MERGE (a:Afectacion {nombre: valor});
+
+// Para especificar más SET a.cantidad = cantidad;
+
+
+//
+// MUNICIPIOS Y  CENTROS POBLADOS
+//
+
+// Constraint de unicidad ANTES del UNWIND para garantizar integridad
+CREATE CONSTRAINT centro_unico IF NOT EXISTS FOR (c:CentroPoblado)
+REQUIRE (c.nombre, c.municipio) IS UNIQUE;
+
+UNWIND [
+['POPAYÁN','POPAYÁN'],
+['POPAYÁN','CAJETE'],
+['POPAYÁN','CALIBÍO'],
+['POPAYÁN','JULUMITO'],
+['POPAYÁN','LA REJOYA'],
+['POPAYÁN','PUEBLILLO'],
+['POPAYÁN','PUELENJE'],
+['POPAYÁN','SANTA ROSA'],
+['POPAYÁN','POBLAZÓN'],
+['POPAYÁN','SAMUEL SILVERIO'],
+['POPAYÁN','CRUCERO DE PUELENJE'],
+['POPAYÁN','EL SALVADOR'],
+['POPAYÁN','EL TÚNEL'],
+['POPAYÁN','JULUMITO ALTO'],
+['POPAYÁN','LA CABUYERA'],
+['POPAYÁN','LA PLAYA'],
+['POPAYÁN','LAME'],
+['POPAYÁN','RÍO BLANCO'],
+['POPAYÁN','VEREDA DE TORRES'],
+['POPAYÁN','LA ESPERANZA (JARDÍNES DE PAZ)'],
+['POPAYÁN','LA FORTALEZA'],
+['POPAYÁN','PARCELACIÓN ATARDECERES DE LA PRADERA'],
+['POPAYÁN','LOS LLANOS'],
+['POPAYÁN','LAS PALMAS'],
+['POPAYÁN','PUEBLO KOKONUCO'],
+['POPAYÁN','LA LAJA'],
+['POPAYÁN','VILLANUEVA'],
+['ALMAGUER','ALMAGUER'],
+['ALMAGUER','CAQUIONA'],
+['ALMAGUER','TABLÓN'],
+['ALMAGUER','LLACUANAS'],
+['ALMAGUER','HATO HUMUS'],
+['ALMAGUER','SAN JORGE HERRADURA'],
+['ALMAGUER','LA HONDA'],
+['ALMAGUER','POTRERO'],
+['ALMAGUER','DOMINGUILLO'],
+['ARGELIA','ARGELIA'],
+['ARGELIA','EL MANGO'],
+['ARGELIA','LA BELLEZA'],
+['ARGELIA','EL DIVISO'],
+['ARGELIA','EL PLATEADO'],
+['ARGELIA','SINAÍ'],
+['ARGELIA','PUERTO RICO'],
+['ARGELIA','SAN JUAN GUADUA'],
+['BALBOA','BALBOA'],
+['BALBOA','LA PLANADA'],
+['BALBOA','OLAYA'],
+['BALBOA','SAN ALFONSO'],
+['BALBOA','LA BERMEJA'],
+['BALBOA','PURETO'],
+['BALBOA','LA LOMITA'],
+['BALBOA','EL VIJAL'],
+['BALBOA','PARAÍSO'],
+['BOLÍVAR','BOLÍVAR'],
+['BOLÍVAR','CAPELLANÍAS'],
+['BOLÍVAR','EL CARMEN'],
+['BOLÍVAR','EL RODEO'],
+['BOLÍVAR','GUACHICONO'],
+['BOLÍVAR','LERMA'],
+['BOLÍVAR','LOS MILAGROS'],
+['BOLÍVAR','MELCHOR'],
+['BOLÍVAR','SAN JUAN'],
+['BOLÍVAR','SAN LORENZO'],
+['BOLÍVAR','LA CARBONERA'],
+['BOLÍVAR','EL MORRO'],
+['BOLÍVAR','CIMARRONAS'],
+['BUENOS AIRES','BUENOS AIRES'],
+['BUENOS AIRES','EL PORVENIR'],
+['BUENOS AIRES','HONDURAS'],
+['BUENOS AIRES','LA BALSA'],
+['BUENOS AIRES','TIMBA'],
+['BUENOS AIRES','EL CERAL'],
+['BUENOS AIRES','SAN FRANCISCO'],
+['BUENOS AIRES','PALOBLANCO'],
+['BUENOS AIRES','LA ESPERANZA'],
+['BUENOS AIRES','MUNCHIQUE'],
+['BUENOS AIRES','LAS DELICIAS'],
+['CAJIBÍO','CAJIBÍO'],
+['CAJIBÍO','EL CARMELO'],
+['CAJIBÍO','EL ROSARIO'],
+['CAJIBÍO','LA CAPILLA'],
+['CAJIBÍO','LA PEDREGOSA'],
+['CAJIBÍO','LA VENTA'],
+['CAJIBÍO','SANTA TERESA DE CASAS BAJAS'],
+['CAJIBÍO','ORTEGA'],
+['CAJIBÍO','EL CAIRO'],
+['CAJIBÍO','EL COFRE'],
+['CAJIBÍO','ISLA DEL PONTÓN'],
+['CAJIBÍO','LA LAGUNA DINDE'],
+['CAJIBÍO','RESGUARDO INDÍGENA DEL GUAYABAL CXAYUGE FXIW CXAB'],
+['CAJIBÍO','URBANIZACIÓN LAS MARGARITAS'],
+['CAJIBÍO','LAS MARGARITAS'],
+['CALDONO','CALDONO'],
+['CALDONO','CERRO ALTO'],
+['CALDONO','EL PITAL'],
+['CALDONO','PESCADOR'],
+['CALDONO','PUEBLO NUEVO'],
+['CALDONO','SIBERIA'],
+['CALDONO','ANDALUCÍA'],
+['CALDONO','CRUCERO DE PESCADOR'],
+['CALDONO','EL TABLÓN'],
+['CALDONO','PLAN DE ZUÑIGA'],
+['CALDONO','NARCIZO'],
+['CALDONO','CARRIZAL'],
+['CALDONO','CHINDACO'],
+['CALOTO','CALOTO'],
+['CALOTO','EL PALO'],
+['CALOTO','HUASANÓ'],
+['CALOTO','QUINTERO'],
+['CALOTO','LA ARROBLEDA'],
+['CALOTO','CRUCERO DE GUALÍ'],
+['CALOTO','HUELLAS'],
+['CALOTO','ALTO EL PALO'],
+['CALOTO','BODEGA ARRIBA'],
+['CALOTO','EL NILO'],
+['CALOTO','EL GUÁSIMO'],
+['CALOTO','TOEZ'],
+['CALOTO','EL CREDO'],
+['CALOTO','LÓPEZ ADENTRO'],
+['CALOTO','MORALES'],
+['CALOTO','EL TIERRERO'],
+['CALOTO','PÍLAMO'],
+['CALOTO','LOMA PELADA'],
+['CALOTO','EL PAJARITO'],
+['CALOTO','CARPINTERO'],
+['CORINTO','CORINTO'],
+['CORINTO','EL JAGUAL'],
+['CORINTO','LOS ANDES'],
+['CORINTO','MEDIA NARANJA'],
+['CORINTO','RIONEGRO'],
+['CORINTO','SAN RAFAEL'],
+['CORINTO','EL BARRANCO'],
+['CORINTO','QUEBRADITAS'],
+['CORINTO','EL PEDREGAL'],
+['CORINTO','LA LAGUNA'],
+['CORINTO','LA MARIA'],
+['CORINTO','LA CAPILLA'],
+['CORINTO','LA CIMA'],
+['CORINTO','LA ESTHER'],
+['CORINTO','EL BOQUERÓN'],
+['CORINTO','CHICHARRONAL'],
+['CORINTO','EL PARAÍSO'],
+['CORINTO','LAS CRUCES'],
+['CORINTO','COMUNIDAD QUEBRADITAS'],
+['CORINTO','ALTAMIRA'],
+['CORINTO','YARUMALES'],
+['CORINTO','EL CRUCERO'],
+['CORINTO','SAN PEDRO'],
+['CORINTO','EL PALMAR'],
+['EL TAMBO','EL TAMBO'],
+['EL TAMBO','ALTO DEL REY'],
+['EL TAMBO','CUATRO ESQUINAS'],
+['EL TAMBO','CHAPA'],
+['EL TAMBO','EL PLACER'],
+['EL TAMBO','EL ZARZAL'],
+['EL TAMBO','HUISITÓ'],
+['EL TAMBO','LA ALIANZA'],
+['EL TAMBO','LA PAZ'],
+['EL TAMBO','LOS ANAYES'],
+['EL TAMBO','LOS ANDES'],
+['EL TAMBO','PANDIGUANDO'],
+['EL TAMBO','PIAGUA'],
+['EL TAMBO','QUILCACÉ'],
+['EL TAMBO','SAN JOAQUÍN'],
+['EL TAMBO','SEGUENGUE'],
+['EL TAMBO','URIBE'],
+['EL TAMBO','FONDAS'],
+['EL TAMBO','BUENA VISTA'],
+['EL TAMBO','LAS BOTAS'],
+['EL TAMBO','CABUYAL'],
+['EL TAMBO','EL CRUCERO DEL PUEBLO'],
+['EL TAMBO','PLAYA RICA'],
+['EL TAMBO','AIRES DE OCCIDENTE'],
+['EL TAMBO','EL CRUCERO DE PANDIGUANDO'],
+['EL TAMBO','EL RECUERDO'],
+['EL TAMBO','LA CHICUEÑA'],
+['EL TAMBO','PUENTE DEL RÍO TIMBÍO'],
+['EL TAMBO','LA VENTA'],
+['EL TAMBO','ZARZALITO'],
+['EL TAMBO','SAN ROQUE CAÑAVERAL'],
+['EL TAMBO','LOMA DE ASTUDILLO'],
+['FLORENCIA','FLORENCIA'],
+['FLORENCIA','EL ROSARIO'],
+['FLORENCIA','MARSELLA'],
+['GUACHENÉ','GUACHENÉ'],
+['GUACHENÉ','BARRAGAN'],
+['GUACHENÉ','CAMPOALEGRE'],
+['GUACHENÉ','CAPONERA 1'],
+['GUACHENÉ','CAPONERA SECTOR PALO BLANCO'],
+['GUACHENÉ','CIÉNAGA HONDA'],
+['GUACHENÉ','GUABAL'],
+['GUACHENÉ','GUABAL 1'],
+['GUACHENÉ','GUABAL 2'],
+['GUACHENÉ','LA CABAÑA'],
+['GUACHENÉ','LA CABAÑITA'],
+['GUACHENÉ','LA DOMINGA'],
+['GUACHENÉ','LLANO DE TAULA ALTO'],
+['GUACHENÉ','LLANO DE TAULA BAJO'],
+['GUACHENÉ','MINGO'],
+['GUACHENÉ','OBANDO'],
+['GUACHENÉ','OBANDO SECTOR LA ESPERANZA'],
+['GUACHENÉ','SABANETA'],
+['GUACHENÉ','SAN ANTONIO'],
+['GUACHENÉ','SAN JACINTO'],
+['GUACHENÉ','SAN JOSÉ'],
+['GUAPI','GUAPI'],
+['GUAPI','BENJAMÍN HERRERA (SAN VICENTE)'],
+['GUAPI','CALLELARGA'],
+['GUAPI','EL CARMELO'],
+['GUAPI','LIMONES'],
+['GUAPI','EL ROSARIO'],
+['GUAPI','SAN AGUSTÍN'],
+['GUAPI','SAN ANTONIO DE GUAJUÍ'],
+['GUAPI','URIBE URIBE (EL NARANJO)'],
+['GUAPI','QUIROGA'],
+['GUAPI','CHUARE'],
+['GUAPI','SAN JOSÉ DE GUARE'],
+['GUAPI','BELÉN'],
+['GUAPI','CAIMITO'],
+['GUAPI','SANTA ANA'],
+['INZÁ','INZÁ'],
+['INZÁ','CALDERAS'],
+['INZÁ','PEDREGAL'],
+['INZÁ','PUERTO VALENCIA'],
+['INZÁ','SAN ANDRÉS'],
+['INZÁ','TUMBICHUCUE'],
+['INZÁ','TURMINÁ'],
+['INZÁ','SANTA TERESA'],
+['INZÁ','GUANACAS'],
+['INZÁ','SAN MIGUEL'],
+['INZÁ','SEGOVIA'],
+['INZÁ','LA MILAGROSA'],
+['INZÁ','YAQUIVÁ'],
+['INZÁ','EL CABUYO'],
+['INZÁ','YARUMAL'],
+['INZÁ','LOMITAS'],
+['INZÁ','EL RINCÓN'],
+['INZÁ','LA PALMA'],
+['INZÁ','EL GUAYABAL'],
+['INZÁ','EL MESÓN'],
+['INZÁ','EL LLANITO'],
+['INZÁ','EL HATO'],
+['INZÁ','SAN FRANCISCO'],
+['INZÁ','BRISAS DEL RIO ULLUCOS'],
+['INZÁ','EL PICACHO'],
+['INZÁ','POTRERITO'],
+['INZÁ','CEDRALIA'],
+['INZÁ','CAPICISGO'],
+['INZÁ','QUIGUANAS'],
+['INZÁ','PUEBLO NUEVO'],
+['INZÁ','ALTO DE LA CRUZ'],
+['INZÁ','VIBORA'],
+['INZÁ','SAN ANTONIO'],
+['JAMBALÓ','JAMBALÓ'],
+['JAMBALÓ','CARRIZAL'],
+['JAMBALÓ','VOLADERO'],
+['JAMBALÓ','VITOYO'],
+['JAMBALÓ','LA ESPERANZA'],
+['LA SIERRA','LA SIERRA'],
+['LA SIERRA','LA DEPRESIÓN'],
+['LA SIERRA','LA CUCHILLA'],
+['LA SIERRA','LA CUCHILLA ALTA'],
+['LA SIERRA','FRONTINO ALTO'],
+['LA SIERRA','EL PARAISO'],
+['LA SIERRA','FRONTINO'],
+['LA SIERRA','DELICIAS'],
+['LA VEGA','LA VEGA'],
+['LA VEGA','ALTAMIRA'],
+['LA VEGA','ARBELA'],
+['LA VEGA','EL PALMAR'],
+['LA VEGA','GUACHICONO'],
+['LA VEGA','LOS UVOS'],
+['LA VEGA','PANCITARÁ'],
+['LA VEGA','SAN MIGUEL'],
+['LA VEGA','SANTA BÁRBARA'],
+['LA VEGA','SANTA JUANA'],
+['LA VEGA','ALBANIA'],
+['LA VEGA','BARBILLAS'],
+['LA VEGA','SANTA RITA'],
+['LA VEGA','EL GUAYABO'],
+['LA VEGA','ALTO DE LAS PALMAS'],
+['LÓPEZ DE MICAY','LÓPEZ'],
+['LÓPEZ DE MICAY','NOANAMITO'],
+['LÓPEZ DE MICAY','PLAYA GRANDE'],
+['LÓPEZ DE MICAY','SAN ANTONIO DE CHUARE'],
+['LÓPEZ DE MICAY','TAPARAL'],
+['LÓPEZ DE MICAY','ZARAGOZA'],
+['LÓPEZ DE MICAY','BETANIA'],
+['LÓPEZ DE MICAY','SAN ANTONIO DE GURUMENDY'],
+['LÓPEZ DE MICAY','SANTA CRUZ DE SIGUI'],
+['LÓPEZ DE MICAY','CABECITAS'],
+['LÓPEZ DE MICAY','ISLA DE GALLO'],
+['LÓPEZ DE MICAY','JUAN COBO'],
+['LÓPEZ DE MICAY','SINAÍ'],
+['LÓPEZ DE MICAY','GUADUALITO'],
+['LÓPEZ DE MICAY','BELEN DE IGUANA'],
+['MERCADERES','MERCADERES'],
+['MERCADERES','ARBOLEDAS'],
+['MERCADERES','EL PILÓN'],
+['MERCADERES','ESMERALDAS'],
+['MERCADERES','SAN JOAQUÍN'],
+['MERCADERES','SAN JUANITO'],
+['MERCADERES','CURACAS'],
+['MERCADERES','LA DESPENSA'],
+['MERCADERES','SOMBRERILLOS'],
+['MERCADERES','EL BADO'],
+['MERCADERES','TABLONCITO'],
+['MERCADERES','MOJARRAS'],
+['MERCADERES','LOS LLANOS'],
+['MERCADERES','BUENOS AIRES'],
+['MERCADERES','EL CANGREJO'],
+['MERCADERES','EL COCAL'],
+['MERCADERES','ESPERANZAS DE MAYO'],
+['MERCADERES','PUEBLO NUEVO'],
+['MIRANDA','MIRANDA'],
+['MIRANDA','CARAQUEÑO'],
+['MIRANDA','MONTERREDONDO'],
+['MIRANDA','ORTIGAL'],
+['MIRANDA','SANTA ANA'],
+['MIRANDA','TIERRADURA'],
+['MIRANDA','TULIPÁN'],
+['MIRANDA','GUATEMALA'],
+['MIRANDA','SAN ANDRÉS'],
+['MIRANDA','LA LINDOSA'],
+['MIRANDA','LAS PALMAS'],
+['MIRANDA','LA UNIÓN'],
+['MIRANDA','EL CRUCERO'],
+['MIRANDA','LAS CAÑAS'],
+['MIRANDA','EL CABILDO'],
+['MIRANDA','LA CILIA'],
+['MIRANDA','POTRERITO'],
+['MIRANDA','CAPARROSAL'],
+['MIRANDA','PROGRESO'],
+['MIRANDA','LA TORTURA'],
+['MORALES','MORALES'],
+['MORALES','CARPINTERO'],
+['MORALES','SAN ISIDRO'],
+['MORALES','SAN ROQUE'],
+['MORALES','SANTA ROSA'],
+['MORALES','LA ESTACIÓN'],
+['MORALES','EL ROSARIO'],
+['MORALES','SAN JOSÉ'],
+['MORALES','EL OSO'],
+['MORALES','EL PLAYÓN'],
+['MORALES','CRUCERO DE PAN DE AZÚCAR'],
+['MORALES','TERRITORIO ZAANANN'],
+['MORALES','LOMITAS'],
+['MORALES','MUSE UKWE'],
+['MORALES','CHIMBORAZO'],
+['MORALES','CAMPO ALEGRE'],
+['MORALES','AGUANEGRA'],
+['MORALES','EL MESÓN'],
+['PADILLA','PADILLA'],
+['PADILLA','YARUMALES'],
+['PADILLA','LA PAILA'],
+['PADILLA','EL CHAMIZO'],
+['PADILLA','LOS ROBLES'],
+['PADILLA','CUERNAVACA'],
+['PÁEZ','BELALCÁZAR'],
+['PÁEZ','AVIRAMA'],
+['PÁEZ','COHETANDO'],
+['PÁEZ','CHINAS'],
+['PÁEZ','ITAIBE'],
+['PÁEZ','LAME'],
+['PÁEZ','MOSOCO'],
+['PÁEZ','RICAURTE'],
+['PÁEZ','RIOCHIQUITO'],
+['PÁEZ','SAN LUIS (POTRERILLO)'],
+['PÁEZ','TALAGA'],
+['PÁEZ','TÓEZ'],
+['PÁEZ','LA MESA DE TOGOIMA'],
+['PÁEZ','EL CABUYO'],
+['PÁEZ','LA CEJA'],
+['PÁEZ','TARAVIRA'],
+['PÁEZ','MINUTO DE DIOS'],
+['PÁEZ','COQUIYÓ'],
+['PÁEZ','CHACHUCUE'],
+['PÁEZ','EL RODEO'],
+['PÁEZ','GUADUALEJO'],
+['PÁEZ','GUAPIO'],
+['PÁEZ','GUAQUIYÓ'],
+['PÁEZ','LA MARÍA'],
+['PÁEZ','MESA DE CALOTO'],
+['PÁEZ','MESA DE TÁLAGA'],
+['PÁEZ','VICANENGA'],
+['PÁEZ','LA MESA DE AVIRAMA'],
+['PÁEZ','LA MESA DE BELALCÁZAR'],
+['PÁEZ','SANTA ROSA'],
+['PÁEZ','EL CUARTEL'],
+['PÁEZ','MONTECRUZ'],
+['PÁEZ','HUILA VIEJO'],
+['PÁEZ','LA MURALLA'],
+['PÁEZ','SECTOR SINAI'],
+['PÁEZ','LA CRUZ DE TOGOIMA'],
+['PÁEZ','TOGOIMA CENTRO'],
+['PÁEZ','CHUMAL'],
+['PÁEZ','CHICAQUIU'],
+['PÁEZ','TRES ESQUINAS'],
+['PÁEZ','ALTO AVIRAMA'],
+['PÁEZ','MESA DE COHETANDO'],
+['PÁEZ','CALOTO COHETANDO'],
+['PÁEZ','LAS DELICIAS COHETANDO'],
+['PÁEZ','LA FLORIDA'],
+['PÁEZ','GUALCAN'],
+['PÁEZ','EL CARMEN DEL SALADO'],
+['PÁEZ','POTRERO DEL BARRO'],
+['PÁEZ','EL CARMEN'],
+['PÁEZ','UKWE KIWE'],
+['PÁEZ','MESA DE TOGOIMA UNO'],
+['PÁEZ','VILLAITAIBE'],
+['PÁEZ','BELLO HORIZONTE'],
+['PÁEZ','VITONCO CENTRO'],
+['PÁEZ','LA TROJA'],
+['PÁEZ','BOTATIERRA'],
+['PÁEZ','EL HATO'],
+['PÁEZ','SUIN'],
+['PÁEZ','LA ESMERALDA'],
+['PÁEZ','EL CANELO'],
+['PÁEZ','EL RECUERDO'],
+['PÁEZ','AGUA BENDITA'],
+['PÁEZ','AGUACATICO'],
+['PATÍA','EL BORDO'],
+['PATÍA','BRISAS'],
+['PATÍA','DON ALONSO'],
+['PATÍA','GALÍNDEZ'],
+['PATÍA','LA FONDA'],
+['PATÍA','LA MESA'],
+['PATÍA','PATÍA'],
+['PATÍA','PIEDRASENTADA'],
+['PATÍA','PAN DE AZÚCAR'],
+['PATÍA','SAJANDÍ'],
+['PATÍA','EL ESTRECHO'],
+['PATÍA','EL HOYO'],
+['PATÍA','SANTA CRUZ'],
+['PATÍA','PALO MOCHO'],
+['PIAMONTE','PIAMONTE'],
+['PIAMONTE','EL REMANSO'],
+['PIAMONTE','MIRAFLOR'],
+['PIAMONTE','YAPURÁ'],
+['PIAMONTE','LAS PALMERAS 1'],
+['PIAMONTE','LAS PALMERAS 2'],
+['PIAMONTE','NÁPOLES'],
+['PIENDAMÓ - TUNÍA','PIENDAMÓ'],
+['PIENDAMÓ - TUNÍA','TUNÍA'],
+['PIENDAMÓ - TUNÍA','SANTA HELENA'],
+['PIENDAMÓ - TUNÍA','CORRALES'],
+['PIENDAMÓ - TUNÍA','EL CARMEN'],
+['PIENDAMÓ - TUNÍA','LOMA CORTA'],
+['PIENDAMÓ - TUNÍA','SAN MIGUEL'],
+['PIENDAMÓ - TUNÍA','ALTO PIENDAMO'],
+['PIENDAMÓ - TUNÍA','VILLA MERCEDES'],
+['PIENDAMÓ - TUNÍA','LOS ARADOS'],
+['PIENDAMÓ - TUNÍA','EL MANGO'],
+['PUERTO TEJADA','PUERTO TEJADA'],
+['PUERTO TEJADA','BOCAS DEL PALO'],
+['PUERTO TEJADA','LAS BRISAS'],
+['PUERTO TEJADA','SAN CARLOS'],
+['PUERTO TEJADA','ZANJÓN RICO'],
+['PUERTO TEJADA','VUELTA LARGA'],
+['PUERTO TEJADA','LOS BANCOS'],
+['PUERTO TEJADA','GUENGUE'],
+['PUERTO TEJADA','CIUDAD SUR'],
+['PURACÉ','COCONUCO'],
+['PURACÉ','PURACÉ'],
+['PURACÉ','SANTA LETICIA'],
+['PURACÉ','JUAN TAMA'],
+['PURACÉ','PALETARÁ'],
+['PURACÉ','CHAPÍO'],
+['PURACÉ','SAN BARTOLO'],
+['PURACÉ','SAN PEDRILLO'],
+['PURACÉ','BELÉN'],
+['PURACÉ','SAN JOSÉ PISANRABO'],
+['PURACÉ','HISPALA'],
+['PURACÉ','20 DE JULIO'],
+['ROSAS','ROSAS'],
+['ROSAS','PÁRRAGA'],
+['ROSAS','CEFIRO'],
+['ROSAS','SAUCE'],
+['ROSAS','CHONTADURO'],
+['SAN SEBASTIÁN','SAN SEBASTIÁN'],
+['SAN SEBASTIÁN','EL ROSAL'],
+['SAN SEBASTIÁN','MARMATO'],
+['SAN SEBASTIÁN','SANTIAGO'],
+['SAN SEBASTIÁN','VALENCIA'],
+['SAN SEBASTIÁN','VENECIA'],
+['SAN SEBASTIÁN','SANTANDER'],
+['SAN SEBASTIÁN','FLORIDA'],
+['SANTANDER DE QUILICHAO','SANTANDER DE QUILICHAO'],
+['SANTANDER DE QUILICHAO','EL PALMAR'],
+['SANTANDER DE QUILICHAO','EL TURCO'],
+['SANTANDER DE QUILICHAO','LA ARROBLEDA'],
+['SANTANDER DE QUILICHAO','MONDOMO'],
+['SANTANDER DE QUILICHAO','PARAMILLO 1'],
+['SANTANDER DE QUILICHAO','SAN RAFAEL'],
+['SANTANDER DE QUILICHAO','TRES QUEBRADAS'],
+['SANTANDER DE QUILICHAO','SAN ANTONIO'],
+['SANTANDER DE QUILICHAO','SAN PEDRO'],
+['SANTANDER DE QUILICHAO','DOMINGUILLO'],
+['SANTANDER DE QUILICHAO','EL CRUCERO'],
+['SANTANDER DE QUILICHAO','QUINAMAYO'],
+['SANTANDER DE QUILICHAO','LLANO DE ALEGRÍAS'],
+['SANTANDER DE QUILICHAO','CABECERA DOMINGUILLO'],
+['SANTANDER DE QUILICHAO','CAMBALACHE'],
+['SANTANDER DE QUILICHAO','EL BROCHE'],
+['SANTANDER DE QUILICHAO','EL LLANITO'],
+['SANTANDER DE QUILICHAO','EL TAJO'],
+['SANTANDER DE QUILICHAO','LA AGUSTINA'],
+['SANTANDER DE QUILICHAO','LA CAPILLA'],
+['SANTANDER DE QUILICHAO','LA CHAPA'],
+['SANTANDER DE QUILICHAO','LA PALOMERA'],
+['SANTANDER DE QUILICHAO','LA QUEBRADA'],
+['SANTANDER DE QUILICHAO','LOMITAS ABAJO'],
+['SANTANDER DE QUILICHAO','LOMITAS ARRIBA'],
+['SANTANDER DE QUILICHAO','LOURDES'],
+['SANTANDER DE QUILICHAO','MANDIVA'],
+['SANTANDER DE QUILICHAO','SAN JOSÉ'],
+['SANTANDER DE QUILICHAO','VILACHÍ'],
+['SANTANDER DE QUILICHAO','BELLAVISTA'],
+['SANTANDER DE QUILICHAO','PARAMILLO 2'],
+['SANTANDER DE QUILICHAO','TERRITORIO NASA KIWE LA MARÍA'],
+['SANTANDER DE QUILICHAO','TERRITORIO NASA KIWE TEKH KSXAW'],
+['SANTANDER DE QUILICHAO','CACHIRINVAL'],
+['SANTA ROSA','SANTA ROSA'],
+['SANTA ROSA','DESCANSE'],
+['SANTA ROSA','EL CARMELO'],
+['SANTA ROSA','SAN JUAN DE VILLALOBOS'],
+['SILVIA','SILVIA'],
+['SILVIA','PITAYO'],
+['SILVIA','QUICHAYÁ'],
+['SILVIA','PUEBLITO'],
+['SILVIA','USENDA'],
+['SILVIA','CAMPANA'],
+['SILVIA','PUENTE REAL'],
+['SILVIA','MENDEZ'],
+['SILVIA','TENGO'],
+['SILVIA','LOS BUJIOS'],
+['SILVIA','LAS TAPIAS'],
+['SILVIA','DELICIAS'],
+['SILVIA','BUENAVISTA'],
+['SILVIA','BUENAVISTA PITAYÓ'],
+['SILVIA','OVEJERAS'],
+['SILVIA','LA OVEJERA 1'],
+['SILVIA','MARIPOSAS'],
+['SILVIA','PEÑA DEL CORAZÓN'],
+['SILVIA','LA ESPERANZA'],
+['SILVIA','SANTA LUCIA'],
+['SILVIA','TUMBURAO'],
+['SOTARÁ PAISPAMBA','PAISPAMBA'],
+['SOTARÁ PAISPAMBA','CHAPA'],
+['SOTARÁ PAISPAMBA','RÍO BLANCO'],
+['SOTARÁ PAISPAMBA','ASENTAMIENTO INDIGENA SACHACOCO'],
+['SOTARÁ PAISPAMBA','LAS VEGAS'],
+['SOTARÁ PAISPAMBA','LA CATANA'],
+['SUÁREZ','SUÁREZ'],
+['SUÁREZ','LA TOMA'],
+['SUÁREZ','LA BETULIA'],
+['SUÁREZ','ALTAMIRA'],
+['SUÁREZ','MATECAÑA'],
+['SUÁREZ','PLAYA RICA'],
+['SUCRE','SUCRE'],
+['SUCRE','EL PARAÍSO'],
+['SUCRE','LA CEJA'],
+['TIMBÍO','TIMBÍO'],
+['TIMBÍO','CRUCES'],
+['TIMBÍO','ALTO SAN JOSÉ'],
+['TIMBÍO','LAS HUACAS'],
+['TIMBÍO','SAN PEDRITO'],
+['TIMBIQUÍ','TIMBIQUÍ'],
+['TIMBIQUÍ','BUBUEY'],
+['TIMBIQUÍ','CAMARONES'],
+['TIMBIQUÍ','COTEJE'],
+['TIMBIQUÍ','SAN BERNARDO'],
+['TIMBIQUÍ','SAN JOSÉ'],
+['TIMBIQUÍ','SANTA MARÍA'],
+['TIMBIQUÍ','SANTA ROSA DE SAIJA'],
+['TIMBIQUÍ','CHETE'],
+['TIMBIQUÍ','BOCA DE PATÍA'],
+['TIMBIQUÍ','EL CHARCO'],
+['TIMBIQUÍ','EL REALITO'],
+['TIMBIQUÍ','CUPI'],
+['TIMBIQUÍ','SAN MIGUEL'],
+['TIMBIQUÍ','COROZAL'],
+['TIMBIQUÍ','CABECITAL'],
+['TIMBIQUÍ','PUERTO SAIJA'],
+['TIMBIQUÍ','ANGOSTURA'],
+['TIMBIQUÍ','GUANGUI'],
+['TIMBIQUÍ','LOS BRASOS'],
+['TIMBIQUÍ','PIZARE'],
+['TIMBIQUÍ','CALLE SANTA ROSA'],
+['TIMBIQUÍ','SAN FRANCISCO'],
+['TORIBÍO','TORIBÍO'],
+['TORIBÍO','LA CRUZ'],
+['TORIBÍO','LA DESPENSA'],
+['TORIBÍO','NATALA'],
+['TORIBÍO','SAN FRANCISCO'],
+['TORIBÍO','SANTO DOMINGO'],
+['TORIBÍO','TACUEYO'],
+['TORIBÍO','EL TABLAZO'],
+['TORIBÍO','CALOTO NUEVO'],
+['TORIBÍO','EL HUILA'],
+['TORIBÍO','LA ESPERANZA'],
+['TORIBÍO','NARANJO CENTRO'],
+['TORIBÍO','LA PILA'],
+['TORIBÍO','LA PRIMICIA'],
+['TORIBÍO','EL FLAYO'],
+['TORIBÍO','SECTOR PIEDRA MULA'],
+['TORIBÍO','SAN JULIAN'],
+['TORIBÍO','DAMIAN'],
+['TORIBÍO','LA MARIA TACUEYO'],
+['TORIBÍO','EL TRAPICHE'],
+['TORIBÍO','LOMA LINDA'],
+['TORIBÍO','VICHIQUI'],
+['TORIBÍO','LA BODEGA'],
+['TORIBÍO','BELÉN'],
+['TORIBÍO','BUENAVISTA'],
+['TORIBÍO','LA SUSANA'],
+['TORIBÍO','EL CONGO'],
+['TORIBÍO','EL SESTEADERO'],
+['TORIBÍO','SAN DIEGO'],
+['TORIBÍO','LA CAPILLA'],
+['TORIBÍO','LA ALBANIA'],
+['TORIBÍO','CHIMICUETO'],
+['TORIBÍO','GALLINAZAS'],
+['TORIBÍO','SOTO'],
+['TORIBÍO','GARGANTILLAS'],
+['TORIBÍO','TRIUNFO'],
+['TORIBÍO','ASOMADERO'],
+['TORIBÍO','PUENTE QUEMADO'],
+['TORIBÍO','LA PLAYA'],
+['TORIBÍO','LA TOLDA'],
+['TORIBÍO','LA CALERA'],
+['TOTORÓ','TOTORÓ'],
+['TOTORÓ','GABRIEL LÓPEZ'],
+['TOTORÓ','PANIQUITÁ'],
+['TOTORÓ','POLINDARÁ'],
+['TOTORÓ','JEBALÁ'],
+['TOTORÓ','BAJO PALACÉ'],
+['TOTORÓ','EL PORVENIR'],
+['TOTORÓ','ALTO BUENAVISTA'],
+['TOTORÓ','BUENAVISTA TATAWALA'],
+['TOTORÓ','HATOVIEJO'],
+['TOTORÓ','BETANIA'],
+['TOTORÓ','PEDRAGAL'],
+['TOTORÓ','GALLINAZO'],
+['TOTORÓ','SAN PEDRO DEL BOSQUE'],
+['VILLA RICA','VILLA RICA'],
+['VILLA RICA','JUAN IGNACIO'],
+['VILLA RICA','PRIMAVERA'],
+['VILLA RICA','PERICO NEGRO']
+] AS fila
+
+WITH fila[0] AS municipio, fila[1] AS centro
+
+MERGE (m:Municipio {nombre: municipio})
+
+MERGE (c:CentroPoblado {
+  nombre: centro,
+  nombre_municipio: municipio
+})
+
+MERGE (c)-[:PERTENECE_A]->(m);
+
+
+// RELACION: cada CentroPoblado se vincula a su Municipio padre
 
 
 // -------------------------------------------------------------
 // 1. CONSTRAINTS E ÍNDICES
 // -------------------------------------------------------------
 
-CREATE CONSTRAINT novedad_id       IF NOT EXISTS FOR (n:NOVEDAD)            REQUIRE n.id IS UNIQUE;
-CREATE CONSTRAINT victima_id       IF NOT EXISTS FOR (v:VICTIMA)            REQUIRE v.id IS UNIQUE;
-CREATE CONSTRAINT afectacion_id    IF NOT EXISTS FOR (a:AFECTACION_HUMANA)  REQUIRE a.id IS UNIQUE;
-CREATE CONSTRAINT actor_id         IF NOT EXISTS FOR (a:ACTOR)              REQUIRE a.id IS UNIQUE;
-CREATE CONSTRAINT usuario_id       IF NOT EXISTS FOR (u:USUARIO)            REQUIRE u.id IS UNIQUE;
-
-// Ubicación — un constraint por nivel
-CREATE CONSTRAINT municipio_id     IF NOT EXISTS FOR (m:MUNICIPIO)          REQUIRE m.id IS UNIQUE;
-CREATE CONSTRAINT comuna_id        IF NOT EXISTS FOR (c:COMUNA)             REQUIRE c.id IS UNIQUE;
-CREATE CONSTRAINT barrio_id        IF NOT EXISTS FOR (b:BARRIO)             REQUIRE b.id IS UNIQUE;
-CREATE CONSTRAINT corregimiento_id IF NOT EXISTS FOR (c:CORREGIMIENTO)      REQUIRE c.id IS UNIQUE;
-CREATE CONSTRAINT vereda_id        IF NOT EXISTS FOR (v:VEREDA)             REQUIRE v.id IS UNIQUE;
-CREATE CONSTRAINT sector_id        IF NOT EXISTS FOR (s:SECTOR)             REQUIRE s.id IS UNIQUE;
-CREATE CONSTRAINT territorio_id    IF NOT EXISTS FOR (t:TERRITORIO_INDIGENA) REQUIRE t.id IS UNIQUE;
 
 // Índices de búsqueda frecuente
-CREATE INDEX novedad_categoria     IF NOT EXISTS FOR (n:NOVEDAD)            ON (n.categoria);
-CREATE INDEX novedad_fecha         IF NOT EXISTS FOR (n:NOVEDAD)            ON (n.fecha);
-CREATE INDEX novedad_confianza     IF NOT EXISTS FOR (n:NOVEDAD)            ON (n.nivel_confianza);
-CREATE INDEX novedad_visibilidad   IF NOT EXISTS FOR (n:NOVEDAD)            ON (n.visibilidad);
-CREATE INDEX municipio_nombre      IF NOT EXISTS FOR (m:MUNICIPIO)          ON (m.nombre);
-CREATE INDEX actor_nombre          IF NOT EXISTS FOR (a:ACTOR)              ON (a.nombre);
-CREATE INDEX victima_grupo         IF NOT EXISTS FOR (v:VICTIMA)            ON (v.grupo_poblacional);
-CREATE INDEX usuario_rol           IF NOT EXISTS FOR (u:USUARIO)            ON (u.rol);
+
+CREATE INDEX mes_numero IF NOT EXISTS
+FOR (m:MES) ON (m.numero);
+
+CREATE INDEX categoria_nombre IF NOT EXISTS
+FOR (c:Categoria) ON (c.nombre);
+
+CREATE INDEX actor_nombre IF NOT EXISTS
+FOR (a:Actor) ON (a.nombre);
+
+CREATE INDEX afectacion_nombre IF NOT EXISTS
+FOR (a:Afectacion) ON (a.nombre);
+
+CREATE INDEX municipio_nombre IF NOT EXISTS
+FOR (m:Municipio) ON (m.nombre);
+
+CREATE INDEX centro_poblado_nombre IF NOT EXISTS
+FOR (c:CentroPoblado) ON (c.nombre);
+
+CREATE INDEX centro_poblado_compuesto IF NOT EXISTS
+FOR (c:CentroPoblado) ON (c.nombre, c.municipio);
 
 
-// -------------------------------------------------------------
-// 2. JERARQUÍA GEOGRÁFICA
-//
-// Estructura:
-//   MUNICIPIO
-//   ├── (urbano) COMUNA -[:CONTIENE]-> BARRIO
-//   └── (rural)  CORREGIMIENTO -[:CONTIENE]-> VEREDA -[:CONTIENE]-> SECTOR
-//
-//   MUNICIPIO -[:CONTIENE]-> TERRITORIO_INDIGENA
-//     (puede solaparse con veredas/corregimientos)
-//
-// NOVEDAD -[:OCURRE_EN]-> cualquier nivel de la jerarquía
-// -------------------------------------------------------------
-
-// — Municipios —
-MERGE (:MUNICIPIO {id: "mun-1", nombre: "Popayán",     departamento: "Cauca", area: "Mixta"});
-MERGE (:MUNICIPIO {id: "mun-2", nombre: "Corinto",     departamento: "Cauca", area: "Mixta"});
-MERGE (:MUNICIPIO {id: "mun-3", nombre: "Toribío",     departamento: "Cauca", area: "Mixta"});
-MERGE (:MUNICIPIO {id: "mun-4", nombre: "Buenos Aires",departamento: "Cauca", area: "Mixta"});
-MERGE (:MUNICIPIO {id: "mun-5", nombre: "Jambaló",     departamento: "Cauca", area: "Mixta"});
-
-// — Comunas (área urbana) —
-MATCH (m:MUNICIPIO {id: "mun-1"})
-MERGE (c:COMUNA {id: "com-1", nombre: "Comuna 1", numero: 1})
-MERGE (m)-[:CONTIENE {tipo: "urbano"}]->(c);
-
-MATCH (m:MUNICIPIO {id: "mun-1"})
-MERGE (c:COMUNA {id: "com-2", nombre: "Comuna 2", numero: 2})
-MERGE (m)-[:CONTIENE {tipo: "urbano"}]->(c);
-
-// — Barrios (pertenecen a una comuna) —
-MATCH (c:COMUNA {id: "com-1"})
-MERGE (b:BARRIO {id: "bar-1", nombre: "Alfonso López"})
-MERGE (c)-[:CONTIENE]->(b);
-
-MATCH (c:COMUNA {id: "com-1"})
-MERGE (b:BARRIO {id: "bar-2", nombre: "El Uvo"})
-MERGE (c)-[:CONTIENE]->(b);
-
-MATCH (c:COMUNA {id: "com-2"})
-MERGE (b:BARRIO {id: "bar-3", nombre: "Bella Vista"})
-MERGE (c)-[:CONTIENE]->(b);
-
-// — Corregimientos (área rural) —
-MATCH (m:MUNICIPIO {id: "mun-2"})
-MERGE (cr:CORREGIMIENTO {id: "crr-1", nombre: "Corregimiento La Paz", corregidor: "Pedro Sánchez"})
-MERGE (m)-[:CONTIENE {tipo: "rural"}]->(cr);
-
-MATCH (m:MUNICIPIO {id: "mun-3"})
-MERGE (cr:CORREGIMIENTO {id: "crr-2", nombre: "Corregimiento El Palo", corregidor: "No asignado"})
-MERGE (m)-[:CONTIENE {tipo: "rural"}]->(cr);
-
-MATCH (m:MUNICIPIO {id: "mun-4"})
-MERGE (cr:CORREGIMIENTO {id: "crr-3", nombre: "Corregimiento La Balsa", corregidor: "Rosa Carabalí"})
-MERGE (m)-[:CONTIENE {tipo: "rural"}]->(cr);
-
-// — Veredas (pertenecen a un corregimiento) —
-MATCH (cr:CORREGIMIENTO {id: "crr-1"})
-MERGE (v:VEREDA {id: "ver-1", nombre: "Vereda Mandivá"})
-MERGE (cr)-[:CONTIENE]->(v);
-
-MATCH (cr:CORREGIMIENTO {id: "crr-2"})
-MERGE (v:VEREDA {id: "ver-2", nombre: "Vereda Los Monos"})
-MERGE (cr)-[:CONTIENE]->(v);
-
-MATCH (cr:CORREGIMIENTO {id: "crr-3"})
-MERGE (v:VEREDA {id: "ver-3", nombre: "Vereda La Balsa"})
-MERGE (cr)-[:CONTIENE]->(v);
-
-MATCH (cr:CORREGIMIENTO {id: "crr-3"})
-MERGE (v:VEREDA {id: "ver-4", nombre: "Vereda El Ceral"})
-MERGE (cr)-[:CONTIENE]->(v);
-
-// — Sectores (parte específica de una vereda) —
-MATCH (v:VEREDA {id: "ver-1"})
-MERGE (s:SECTOR {id: "sec-1", nombre: "Sector La Montaña"})
-MERGE (v)-[:CONTIENE]->(s);
-
-MATCH (v:VEREDA {id: "ver-3"})
-MERGE (s:SECTOR {id: "sec-2", nombre: "Sector Bolivia"})
-MERGE (v)-[:CONTIENE]->(s);
-
-MATCH (v:VEREDA {id: "ver-3"})
-MERGE (s:SECTOR {id: "sec-3", nombre: "Sector Betania"})
-MERGE (v)-[:CONTIENE]->(s);
-
-// — Territorios indígenas —
-// Nota: un territorio indígena puede solaparse geográficamente
-// con veredas y corregimientos. Se modela como nodo independiente
-// que también puede relacionarse con éstos mediante [:COMPRENDE].
-MATCH (m:MUNICIPIO {id: "mun-3"})
-MERGE (ti:TERRITORIO_INDIGENA {
-  id:      "ti-1",
-  nombre:  "Resguardo Indígena de Toribío",
-  pueblo:  "Nasa",
-  cabildo: "Cabildo de Toribío"
-})
-MERGE (m)-[:CONTIENE]->(ti);
-
-MATCH (m:MUNICIPIO {id: "mun-5"})
-MERGE (ti:TERRITORIO_INDIGENA {
-  id:      "ti-2",
-  nombre:  "Resguardo Indígena de Jambaló",
-  pueblo:  "Nasa",
-  cabildo: "Cabildo de Jambaló"
-})
-MERGE (m)-[:CONTIENE]->(ti);
-
-// Relación territorio ↔ vereda (solapamiento geográfico)
-MATCH (ti:TERRITORIO_INDIGENA {id: "ti-1"})
-MATCH (v:VEREDA {id: "ver-2"})
-MERGE (ti)-[:COMPRENDE]->(v);
-
-
-// -------------------------------------------------------------
-// 3. ACTORES
-// -------------------------------------------------------------
-
-MERGE (:ACTOR {id: "actor-1", nombre: "Fuerza Pública",          tipo: "Institucional"});
-MERGE (:ACTOR {id: "actor-2", nombre: "Grupo Armado Organizado", tipo: "GAO"});
-MERGE (:ACTOR {id: "actor-3", nombre: "ELN",                     tipo: "GAO"});
-MERGE (:ACTOR {id: "actor-4", nombre: "Segunda Marquetalia",     tipo: "GAO"});
-MERGE (:ACTOR {id: "actor-5", nombre: "Civil / Comunidad",       tipo: "Civil"});
-MERGE (:ACTOR {id: "actor-6", nombre: "No Identificado",         tipo: "Desconocido"});
-MERGE (:ACTOR {id: "actor-7", nombre: "Otro",                    tipo: "Otro"});
-
-
-// -------------------------------------------------------------
-// 4. USUARIOS
-// rol:    Administrador | Operador | Visitante
-// activo: true | false
-// -------------------------------------------------------------
-
-MERGE (:USUARIO {
-  id:        "user-1",
-  nombre:    "Ana Torres",
-  email:     "ana.torres@vigiacauca.gov.co",
-  rol:       "Administrador",
-  activo:    true,
-  creado_en: datetime("2024-01-15T08:00:00")
-});
-
-MERGE (:USUARIO {
-  id:        "user-2",
-  nombre:    "Carlos Muñoz",
-  email:     "carlos.munoz@vigiacauca.gov.co",
-  rol:       "Operador",
-  activo:    true,
-  creado_en: datetime("2024-02-10T09:30:00")
-});
-
-MERGE (:USUARIO {
-  id:        "user-3",
-  nombre:    "Visitante Demo",
-  email:     "demo@vigiacauca.gov.co",
-  rol:       "Visitante",
-  activo:    false,
-  creado_en: datetime("2024-03-01T00:00:00")
-});
-
-
-// -------------------------------------------------------------
-// 5. NOVEDADES + RELACIONES
-//
-// OCURRE_EN apunta al nodo más específico conocido:
-//   sector > vereda > corregimiento > municipio
-//   barrio  > comuna > municipio
-//   territorio_indigena
-//
-// categoria:       Enfrentamiento | Hostigamiento | Atentado Terrorista |
-//                  Ataque con Dron | Homicidio | Secuestro | Retén Ilegal |
-//                  Reclutamiento Ilícito | Acción de Protesta |
-//                  Hallazgo de Material | Otro
-// nivel_confianza: Confirmado | Preliminar | En verificación | No confirmado
-// visibilidad:     Público | Privado
-// -------------------------------------------------------------
-
-// — Novedad 1: ocurre en un sector rural específico —
-MATCH (actor:ACTOR  {id: "actor-3"})
-MATCH (usr:USUARIO  {id: "user-2"})
-MATCH (loc:SECTOR   {id: "sec-1"})
-CREATE (n:NOVEDAD {
-  id:              "nov-001",
-  categoria:       "Hostigamiento",
-  descripcion:     "Hostigamiento a unidad militar en el sector La Montaña, vereda Mandivá.",
-  fecha:           date("2024-04-10"),
-  hora:            time("14:30:00"),
-  nivel_confianza: "Confirmado",
-  visibilidad:     "Público",
-  fuente:          "Informe de unidad",
-  creado_en:       datetime()
-})
-CREATE (actor)-[:PARTICIPA_EN {rol: "Agresor"}]->(n)
-CREATE (n)-[:OCURRE_EN]->(loc)
-CREATE (usr)-[:REPORTA {fecha_reporte: datetime()}]->(n);
-
-// — Novedad 2: ocurre en un territorio indígena —
-MATCH (actor:ACTOR              {id: "actor-4"})
-MATCH (usr:USUARIO              {id: "user-2"})
-MATCH (loc:TERRITORIO_INDIGENA  {id: "ti-1"})
-CREATE (n:NOVEDAD {
-  id:              "nov-002",
-  categoria:       "Ataque con Dron",
-  descripcion:     "Artefacto explosivo lanzado desde dron sobre posición en resguardo de Toribío.",
-  fecha:           date("2024-05-02"),
-  hora:            time("03:15:00"),
-  nivel_confianza: "Preliminar",
-  visibilidad:     "Privado",
-  fuente:          "Reporte policial",
-  creado_en:       datetime()
-})
-CREATE (actor)-[:PARTICIPA_EN {rol: "Agresor"}]->(n)
-CREATE (n)-[:OCURRE_EN]->(loc)
-CREATE (usr)-[:REPORTA {fecha_reporte: datetime()}]->(n);
-
-// — Novedad 3: ocurre en una vereda (sin sector identificado) —
-MATCH (actor:ACTOR  {id: "actor-6"})
-MATCH (usr:USUARIO  {id: "user-1"})
-MATCH (loc:VEREDA   {id: "ver-3"})
-CREATE (n:NOVEDAD {
-  id:              "nov-003",
-  categoria:       "Homicidio",
-  descripcion:     "Cuerpo hallado en vereda La Balsa. Actor no identificado.",
-  fecha:           date("2024-05-18"),
-  hora:            time("07:00:00"),
-  nivel_confianza: "En verificación",
-  visibilidad:     "Privado",
-  fuente:          "CTI - Fiscalía",
-  creado_en:       datetime()
-})
-CREATE (actor)-[:PARTICIPA_EN {rol: "Presunto autor"}]->(n)
-CREATE (n)-[:OCURRE_EN]->(loc)
-CREATE (usr)-[:REPORTA {fecha_reporte: datetime()}]->(n);
-
-// — Novedad 4: ocurre en un barrio urbano —
-MATCH (actor:ACTOR  {id: "actor-5"})
-MATCH (usr:USUARIO  {id: "user-2"})
-MATCH (loc:BARRIO   {id: "bar-1"})
-CREATE (n:NOVEDAD {
-  id:              "nov-004",
-  categoria:       "Acción de Protesta",
-  descripcion:     "Bloqueo vial en barrio Alfonso López, Popayán.",
-  fecha:           date("2024-06-03"),
-  hora:            time("09:00:00"),
-  nivel_confianza: "Confirmado",
-  visibilidad:     "Público",
-  fuente:          "Policía Metropolitana",
-  creado_en:       datetime()
-})
-CREATE (actor)-[:PARTICIPA_EN {rol: "Participante"}]->(n)
-CREATE (n)-[:OCURRE_EN]->(loc)
-CREATE (usr)-[:REPORTA {fecha_reporte: datetime()}]->(n);
-
-
-// -------------------------------------------------------------
-// 6. VÍCTIMAS
-// genero:            Masculino | Femenino | LGBTI+ | No especificado
-// grupo_poblacional: Campesino/a | Indígena | Afrocolombiano/a |
-//                    Nino | Adolecente | Adulto | Adulto_Mayor |
-//                    Discapacidad | Ninguno / No especificado
-// -------------------------------------------------------------
-
-MATCH (n:NOVEDAD {id: "nov-001"})
-CREATE (v:VICTIMA {
-  id:                "vic-001",
-  nombre:            "No identificado",
-  edad:              35,
-  genero:            "Masculino",
-  grupo_poblacional: "Campesino/a",
-  condicion:         "Herido"
-})
-CREATE (n)-[:TIENE_VICTIMA]->(v);
-
-MATCH (n:NOVEDAD {id: "nov-003"})
-CREATE (v:VICTIMA {
-  id:                "vic-002",
-  nombre:            "Reservado",
-  edad:              42,
-  genero:            "Masculino",
-  grupo_poblacional: "Indígena",
-  condicion:         "Fallecido"
-})
-CREATE (n)-[:TIENE_VICTIMA]->(v);
-
-MATCH (n:NOVEDAD {id: "nov-003"})
-CREATE (v:VICTIMA {
-  id:                "vic-003",
-  nombre:            "Reservado",
-  edad:              16,
-  genero:            "Femenino",
-  grupo_poblacional: "Adolecente",
-  condicion:         "Desaparecida"
-})
-CREATE (n)-[:TIENE_VICTIMA]->(v);
-
-
-// -------------------------------------------------------------
-// 7. AFECTACIÓN HUMANA
-// reclutamiento_menores_flag: Sí | No | No aplica | En investigación
-// -------------------------------------------------------------
-
-MATCH (n:NOVEDAD  {id: "nov-001"})
-MATCH (v:VICTIMA  {id: "vic-001"})
-CREATE (af:AFECTACION_HUMANA {
-  id:                         "af-001",
-  heridos_civiles:            1,
-  heridos_fuerza_publica:     2,
-  fallecidos_civiles:         0,
-  fallecidos_fuerza_publica:  0,
-  desplazados:                0,
-  reclutamiento_menores_flag: "No aplica",
-  observaciones:              "Dos uniformados con heridas leves."
-})
-CREATE (n)-[:GENERA]->(af)
-CREATE (v)-[:REGISTRA]->(af);
-
-MATCH (n:NOVEDAD {id: "nov-003"})
-MATCH (v2:VICTIMA {id: "vic-002"})
-MATCH (v3:VICTIMA {id: "vic-003"})
-CREATE (af:AFECTACION_HUMANA {
-  id:                         "af-002",
-  heridos_civiles:            0,
-  heridos_fuerza_publica:     0,
-  fallecidos_civiles:         1,
-  fallecidos_fuerza_publica:  0,
-  desplazados:                12,
-  reclutamiento_menores_flag: "En investigación",
-  observaciones:              "Menor desaparecida. Posible reclutamiento bajo investigación."
-})
-CREATE (n)-[:GENERA]->(af)
-CREATE (v2)-[:REGISTRA]->(af)
-CREATE (v3)-[:REGISTRA]->(af);
-
-
-// =============================================================
-// 8. CONSULTAS DE EJEMPLO
-// =============================================================
-
-// -- 8.1 Subir la jerarquía desde un sector hasta el municipio
-//        (útil para reportes agregados)
-MATCH (s:SECTOR {nombre: "Sector La Montaña"})
-      <-[:CONTIENE]-(v:VEREDA)
-      <-[:CONTIENE]-(cr:CORREGIMIENTO)
-      <-[:CONTIENE]-(m:MUNICIPIO)
-RETURN s.nombre AS sector, v.nombre AS vereda,
-       cr.nombre AS corregimiento, m.nombre AS municipio;
-
-// -- 8.2 Todas las novedades de un municipio, sin importar
-//        en qué nivel de la jerarquía ocurrieron
-MATCH (m:MUNICIPIO {nombre: "Buenos Aires"})
-      -[:CONTIENE*1..4]->(lugar)
-      <-[:OCURRE_EN]-(n:NOVEDAD)
-RETURN n.id, n.categoria, n.fecha, labels(lugar)[0] AS nivel, lugar.nombre AS lugar
-ORDER BY n.fecha DESC;
-
-// -- 8.3 Novedades en territorios indígenas con menores en riesgo
-MATCH (n:NOVEDAD)-[:OCURRE_EN]->(ti:TERRITORIO_INDIGENA),
-      (n)-[:GENERA]->(af:AFECTACION_HUMANA)
-WHERE af.reclutamiento_menores_flag IN ["Sí", "En investigación"]
-RETURN n.id, n.categoria, ti.nombre AS territorio,
-       ti.pueblo AS pueblo, af.reclutamiento_menores_flag
-ORDER BY n.fecha DESC;
-
-// -- 8.4 Municipios con más novedades (agrupando toda la jerarquía)
-MATCH (m:MUNICIPIO)-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD)
-RETURN m.nombre AS municipio, count(DISTINCT n) AS total_novedades
-ORDER BY total_novedades DESC;
-
-// -- 8.5 Actores más activos por tipo de área (urbano / rural)
-MATCH (a:ACTOR)-[:PARTICIPA_EN]->(n:NOVEDAD)-[:OCURRE_EN]->(lugar)
-WITH a, n, lugar,
-     CASE
-       WHEN lugar:BARRIO OR lugar:COMUNA THEN "Urbano"
-       WHEN lugar:TERRITORIO_INDIGENA    THEN "Territorio indígena"
-       ELSE "Rural"
-     END AS area
-RETURN a.nombre AS actor, area, count(n) AS total
-ORDER BY total DESC;
-
-// -- 8.6 Ruta completa: usuario → novedad → lugar → municipio
-MATCH (usr:USUARIO)-[:REPORTA]->(n:NOVEDAD)-[:OCURRE_EN]->(lugar)
-OPTIONAL MATCH (lugar)<-[:CONTIENE*1..3]-(m:MUNICIPIO)
-RETURN usr.nombre AS operador, n.categoria,
-       labels(lugar)[0] AS nivel_ubicacion,
-       lugar.nombre     AS lugar,
-       coalesce(m.nombre, lugar.nombre) AS municipio;
