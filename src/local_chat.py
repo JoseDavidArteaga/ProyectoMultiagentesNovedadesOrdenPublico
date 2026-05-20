@@ -22,79 +22,22 @@ from src.neo4j_graph import Neo4jGraphClient, QueryResult
 from src.ollama_client import OllamaClient
 from src.vigia_schema import GRAPH_SCHEMA_FOR_LLM
 from src.langfuse_integration import LangfuseTracer
+from src.prompts_manager import (
+    get_interpreter_prompt,
+    get_consultant_prompt,
+    get_redactor_prompt,
+)
 
 
-INTERPRETER_SYSTEM_PROMPT = """Eres el Agente 1 — Intérprete del sistema Vigía Cauca.
 
-Tu tarea es analizar la pregunta del usuario en español y devolver UN SOLO objeto JSON válido
-(sin markdown, sin texto adicional) con la forma exacta:
+# Prompts are now managed via Langfuse (with local fallback).
+# See src/prompts_manager.py for the implementation.
+# To migrate prompts to Langfuse, run:
+#   export LANGFUSE_ENABLED=true
+#   export LANGFUSE_PUBLIC_KEY=pk-lf-...
+#   export LANGFUSE_SECRET_KEY=sk-lf-...
+#   python migrate_prompts_to_langfuse.py
 
-{
-  "intencion": "<conteo|listado|resumen|comparacion|detalle|ranking>",
-  "categoria": "<valor ENUM de NOVEDAD.categoria o null>",
-  "ubicacion": { "nombre": "<texto o null>", "nivel": "<MUNICIPIO|CORREGIMIENTO|VEREDA|SECTOR|BARRIO|COMUNA|TERRITORIO_INDIGENA|null>" },
-  "periodo": { "desde": "<YYYY-MM-DD o null>", "hasta": "<YYYY-MM-DD|hoy|null>" },
-  "perfil_usuario": "<tecnico|no_tecnico>",
-  "filtros_adicionales": { },
-  "aclaracion_requerida": <true|false>,
-  "pregunta_aclaracion": "<string o null>"
-}
-
-Reglas:
-- Conoces el modelo de datos Neo4j (Vigía Cauca v2). Usa solo ENUMs y nombres del esquema provisto abajo.
-- Si la intención es ambigua o falta el alcance geográfico cuando es necesario, pon aclaracion_requerida: true
-  y una pregunta_aclaracion concreta en español. NO inventes municipios.
-- Si la pregunta es saludo o no requiere datos del grafo, devuelve JSON válido con intencion "resumen",
-  aclaracion_requerida: false, y categoria null.
-- perfil_usuario: si el usuario pide datos técnicos (veredas, cortes exactos), "tecnico"; si no, "no_tecnico".
-""".strip()
-
-
-CONSULTANT_SYSTEM_PROMPT = f"""Eres el Agente 2 — Consultor Cypher para Neo4j (Vigía Cauca).
-
-Recibirás la pregunta original del usuario, un JSON de intención del Agente 1, el rol del usuario en la plataforma,
-y la fecha de hoy (ISO) para interpretar "hoy" en filtros de fecha.
-
-Debes responder con UN SOLO objeto JSON:
-{{
-  "cypher": "<consulta Cypher de solo lectura>",
-  "params": {{ }}
-}}
-
-Reglas de seguridad (obligatorias):
-- Solo cláusulas: MATCH, OPTIONAL MATCH, RETURN, WHERE, WITH, ORDER BY, LIMIT, UNWIND, CASE.
-- PROHIBIDO: CREATE, MERGE, DELETE, SET, REMOVE, DROP, LOAD CSV, FOREACH, CALL dbms.*, CALL apoc.*.
-- Toda consulta debe tener LIMIT (máximo 100).
-- Para filtrar por nombre de municipio y llegar a las novedades:
-  MATCH (m:MUNICIPIO {{nombre: $municipio}})-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD)
-- Dirección de relaciones exacta: (ACTOR)-[:PARTICIPA_EN]->(NOVEDAD), (NOVEDAD)-[:OCURRE_EN]->(lugar),
-  (NOVEDAD)-[:TIENE_VICTIMA]->(VICTIMA), (NOVEDAD)-[:GENERA]->(AFECTACION_HUMANA).
-- La propiedad en NOVEDAD es visibilidad (no nivel_visibilidad).
-- Si rol_usuario es "Visitante", excluye siempre filas con novedades privadas:
-  añade en el MATCH de NOVEDAD la condición AND coalesce(n.visibilidad, 'Público') = 'Público'
-  (o equivalente que excluya "Privado").
-- Usa parámetros ($nombre, fechas como date('YYYY-MM-DD')) en params cuando corresponda.
-
-Esquema:
-{GRAPH_SCHEMA_FOR_LLM}
-""".strip()
-
-
-def _redactor_system_prompt() -> str:
-    return """Eres el Agente 3 — Redactor de informes institucionales del sistema Vigía Cauca.
-
-Entrada: resultados tabulares en JSON (datos devueltos por Neo4j) más el JSON de intención del Agente 1
-(incluye perfil_usuario) y el rol del usuario en la plataforma.
-
-Reglas obligatorias:
-- Redacta solo con la información presente en los datos. No inventes cifras, fechas ni hechos.
-- Si nivel_confianza en los datos es Preliminar o En verificación, dilo explícitamente; nunca presentes como confirmado.
-- No reveles nombres de víctimas; si aparecen "Reservado" o "No identificado", respétalo.
-- Si el usuario es Visitante y los datos no incluyen hechos privados (ya filtrados en consulta), no menciones fuentes internas.
-- Tono: si perfil_usuario es "no_tecnico", lenguaje claro y cotidiano; si es "tecnico", puedes incluir nombres de lugares y datos precisos.
-- Informe formal, sin mencionar IA, Cypher, agentes ni ingeniería.
-- No hagas juicios de culpabilidad ni perfilés comunidades.
-""".strip()
 
 
 @dataclass
@@ -250,6 +193,26 @@ class LocalGraphChat:
                     plan = self._agente2_cypher(question, intencion, rol_usuario)
                     cypher = plan.get("cypher") or ""
                     params = plan.get("params") or {}
+
+                    if self._cypher_requires_correction(cypher):
+                        trace("Agente 2 produjo un Cypher incompatible; reintentando con corrección explícita")
+                        plan = self._agente2_cypher(
+                            question,
+                            intencion,
+                            rol_usuario,
+                            correction_note=(
+                                "La consulta anterior era incorrecta. Usa el esquema canónico: "
+                                "(HECHO)-[:OCURRE_EN]->(CentroPoblado). No inviertas la relación. "
+                                "No uses GROUP BY; agrupa con WITH. Para ranking, usa el patrón:\n"
+                                "MATCH (h:HECHO)-[:OCURRE_EN]->(cp:CentroPoblado)\n"
+                                "WITH cp, count(h) AS cantidad\n"
+                                "ORDER BY cantidad DESC\n"
+                                "LIMIT 5\n"
+                                "RETURN cp.nombre AS nombre, cantidad"
+                            ),
+                        )
+                        cypher = plan.get("cypher") or ""
+                        params = plan.get("params") or {}
                     
                     agent2_span.update(
                         input={"intencion": intencion},
@@ -368,8 +331,9 @@ class LocalGraphChat:
             )
 
     def _agente1_interpretar(self, question: str, schema_block: str) -> dict[str, Any]:
+        interpreter_prompt = get_interpreter_prompt(schema_block=schema_block)
         messages = [
-            {"role": "system", "content": INTERPRETER_SYSTEM_PROMPT + "\n\n" + schema_block},
+            {"role": "system", "content": interpreter_prompt},
             {"role": "user", "content": f"Pregunta del usuario:\n{question}"},
         ]
         raw = self.ollama_client.chat_json(
@@ -465,9 +429,18 @@ class LocalGraphChat:
         question: str,
         intencion: dict[str, Any],
         rol_usuario: str,
+        correction_note: str | None = None,
     ) -> dict[str, Any]:
         hoy = date.today().isoformat()
         payload = json.dumps(intencion, ensure_ascii=False)
+        consultant_prompt = get_consultant_prompt()
+        # Append schema to consultant prompt
+        schema_block = f"\n\nEsquema:\n{GRAPH_SCHEMA_FOR_LLM}"
+        correction_block = (
+            f"\n\nCorrección previa obligatoria:\n{correction_note}"
+            if correction_note
+            else ""
+        )
         user_msg = (
             f"Pregunta original:\n{question}\n\n"
             f"JSON de intención (Agente 1):\n{payload}\n\n"
@@ -476,14 +449,44 @@ class LocalGraphChat:
             "Genera el JSON con cypher y params."
         )
         messages = [
-            {"role": "system", "content": CONSULTANT_SYSTEM_PROMPT},
+            {
+                "role": "system",
+                "content": (
+                    consultant_prompt
+                    + schema_block
+                    + "\n\nReglas críticas: nunca inviertas (HECHO)-[:OCURRE_EN]->(CentroPoblado), "
+                    + "nunca uses GROUP BY, y devuelve siempre solo Cypher de lectura con LIMIT."
+                ),
+            },
             {"role": "user", "content": user_msg},
+            *([
+                {
+                    "role": "user",
+                    "content": correction_block,
+                }
+            ] if correction_note else []),
         ]
         return self.ollama_client.chat_json(
             messages,
             model=self.model_consultant,
             options={"num_predict": OLLAMA_NUM_PREDICT_JSON},
         )
+
+    @staticmethod
+    def _cypher_requires_correction(cypher: str) -> bool:
+        text = (cypher or "").strip()
+        if not text:
+            return True
+        upper = text.upper()
+        if "GROUP BY" in upper:
+            return True
+        inverted_pattern = re.search(
+            r"MATCH\s*\(\s*cp\s*:\s*CENTROPOBLADO\s*\)\s*-\s*\[:\s*OCURRE_EN\s*\]\s*->\s*\(\s*h\s*:\s*HECHO\s*\)",
+            upper,
+        )
+        if inverted_pattern:
+            return True
+        return False
 
     def _agente3_redactar(
         self,
@@ -492,6 +495,7 @@ class LocalGraphChat:
         query_result: QueryResult,
         rol_usuario: str,
     ) -> str:
+        redactor_prompt = get_redactor_prompt()
         rows_json = json.dumps(query_result.records, ensure_ascii=False, indent=2, default=str)
         intent_json = json.dumps(intencion, ensure_ascii=False)
         user_msg = (
@@ -501,7 +505,7 @@ class LocalGraphChat:
             f"Datos de Neo4j (JSON):\n{rows_json}"
         )
         messages = [
-            {"role": "system", "content": _redactor_system_prompt()},
+            {"role": "system", "content": redactor_prompt},
             {"role": "user", "content": user_msg},
         ]
         return self.ollama_client.chat(

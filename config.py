@@ -72,8 +72,8 @@ CATEGORIAS_HECHO_NEO4J: list[str] = [
 # ─── Langfuse (Observabilidad y evaluación de agentes) ──────────────────────
 LANGFUSE_ENABLED: bool = os.environ.get("LANGFUSE_ENABLED", "false").lower() == "true"
 # IMPORTANT: Do not store Langfuse keys in the repository. Set these via environment variables or a local .env file.
-LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
-LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "")
+LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "pk-lf-5c6cc46f-0bac-42a6-9b8b-6d3439649a94")
+LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "sk-lf-04703f39-081f-43f5-b43b-52186763f81a")
 # Default host can point to cloud or a self-hosted instance. Leave empty to use SDK default.
 LANGFUSE_HOST: str = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
 
