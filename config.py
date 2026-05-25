@@ -41,6 +41,9 @@ NEO4J_MAX_RESULTS: int = int(os.environ.get("NEO4J_MAX_RESULTS", "100"))
 # ─── Datos ────────────────────────────────────────────────────────────────────
 RAW_DATA_DIR: str = "data/raw"
 NEO4J_SEED_FILE: str = os.environ.get("NEO4J_SEED_FILE", "data/raw/vigia_cauca_neo4j.cypher")
+NEO4J_DATA_FILE_1: str = os.environ.get("NEO4J_DATA_FILE_1", "data/raw/new_data.cypher")
+NEO4J_DATA_FILE_2: str = os.environ.get("NEO4J_DATA_FILE_2", "data/raw/new_data_2.cypher")
+NEO4J_DATA_FILE_3: str = os.environ.get("NEO4J_DATA_FILE_3", "data/raw/new_data_3.cypher")
 
 # ─── Municipios del Cauca (lista de referencia para Fuzzy Matching) ───────────
 MUNICIPIOS_CAUCA: list[str] = [
@@ -76,6 +79,8 @@ LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "pk-lf-5c6cc46f
 LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "sk-lf-04703f39-081f-43f5-b43b-52186763f81a")
 # Default host can point to cloud or a self-hosted instance. Leave empty to use SDK default.
 LANGFUSE_HOST: str = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
+# Label used to fetch the active prompt versions from Langfuse.
+LANGFUSE_PROMPT_LABEL: str = os.environ.get("LANGFUSE_PROMPT_LABEL", "Testing_1")
 
 # Configuración de evaluación
 EVALUATION_ENABLED: bool = os.environ.get("EVALUATION_ENABLED", "true").lower() == "true"

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from config import LANGFUSE_ENABLED, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
+from config import LANGFUSE_ENABLED, LANGFUSE_PROMPT_LABEL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 
 
 # ── Langfuse client (initialized lazily) ─────────────────────────────────────
@@ -50,10 +50,19 @@ def get_prompt_from_langfuse(prompt_name: str, prompt_type: str = "chat") -> Any
         return None
     
     try:
-        prompt = client.get_prompt(prompt_name, type=prompt_type)
+        prompt = client.get_prompt(prompt_name, type=prompt_type, label=LANGFUSE_PROMPT_LABEL)
         return prompt
     except Exception as e:
-        print(f"⚠️  Failed to fetch prompt '{prompt_name}' from Langfuse: {e}")
+        if LANGFUSE_PROMPT_LABEL.lower() != "production":
+            try:
+                prompt = client.get_prompt(prompt_name, type=prompt_type, label="Testing_1")
+                return prompt
+            except Exception:
+                pass
+
+        print(
+            f"⚠️  Failed to fetch prompt '{prompt_name}' from Langfuse with label '{LANGFUSE_PROMPT_LABEL}': {e}"
+        )
         return None
 
 

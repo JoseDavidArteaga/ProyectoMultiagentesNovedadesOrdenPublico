@@ -28,7 +28,7 @@ from pathlib import Path
 # Agregar src al path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import LANGFUSE_ENABLED, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
+from config import LANGFUSE_ENABLED, LANGFUSE_PROMPT_LABEL, LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY
 from src.prompts_manager import (
     _LOCAL_INTERPRETER_PROMPT,
     _LOCAL_CONSULTANT_PROMPT,
@@ -68,7 +68,7 @@ def migrate_prompts() -> None:
             name="vigia-interpreter",
             type="text",
             prompt=_LOCAL_INTERPRETER_PROMPT,
-            labels=["testing_1"],
+            labels=[LANGFUSE_PROMPT_LABEL],
         )
         print("   ✅ 'vigia-interpreter' creado exitosamente\n")
     except Exception as e:
@@ -81,7 +81,7 @@ def migrate_prompts() -> None:
             name="vigia-consultant",
             type="text",
             prompt=_LOCAL_CONSULTANT_PROMPT,
-            labels=["testing_1"],
+            labels=[LANGFUSE_PROMPT_LABEL],
         )
         print("   ✅ 'vigia-consultant' creado exitosamente\n")
     except Exception as e:
@@ -94,7 +94,7 @@ def migrate_prompts() -> None:
             name="vigia-redactor",
             type="text",
             prompt=_LOCAL_REDACTOR_PROMPT,
-            labels=["testing_1"],
+            labels=[LANGFUSE_PROMPT_LABEL],
         )
         print("   ✅ 'vigia-redactor' creado exitosamente\n")
     except Exception as e:
