@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 import re
 import time
 from typing import Any, Callable
 
 from config import (
-    OLLAMA_MODEL_CONSULTANT,
-    OLLAMA_MODEL_INTERPRETER,
-    OLLAMA_MODEL_REDACTOR,
+    MODEL_CONSULTANT,
+    MODEL_INTERPRETER,
+    MODEL_REDACTOR,
     OLLAMA_NUM_PREDICT_JSON,
     OLLAMA_NUM_PREDICT_TEXT,
 )
@@ -30,20 +30,26 @@ Tu tarea es analizar la pregunta del usuario en español y devolver UN SOLO obje
   "intencion": "<conteo|listado|resumen|comparacion|detalle|ranking>",
   "categoria": "<valor ENUM de NOVEDAD.categoria o null>",
   "ubicacion": { "nombre": "<texto o null>", "nivel": "<MUNICIPIO|CORREGIMIENTO|VEREDA|SECTOR|BARRIO|COMUNA|TERRITORIO_INDIGENA|null>" },
-  "periodo": { "desde": "<YYYY-MM-DD o null>", "hasta": "<YYYY-MM-DD|hoy|null>" },
+  "periodo": { "desde": "<YYYY-MM-DD|hoy|ayer|semana_pasada|este_mes|mes_pasado|null>", "hasta": "<YYYY-MM-DD|hoy|ayer|null>" },
   "perfil_usuario": "<tecnico|no_tecnico>",
   "filtros_adicionales": { },
-  "aclaracion_requerida": <true|false>,
-  "pregunta_aclaracion": "<string o null>"
+  "consulta_mejorada": "<string o null>"
 }
 
 Reglas:
 - Conoces el modelo de datos Neo4j (Vigía Cauca v2). Usa solo ENUMs y nombres del esquema provisto abajo.
-- Si la intención es ambigua o falta el alcance geográfico cuando es necesario, pon aclaracion_requerida: true
-  y una pregunta_aclaracion concreta en español. NO inventes municipios.
+- Si la intención es ambigua o falta el alcance geográfico cuando es necesario, NO hagas una pregunta de aclaración.
+  En su lugar, devuelve `consulta_mejorada` con una versión mejorada y concreta de la consulta original.
+  Ejemplo: usuario dice "¿Qué pasó?" → `consulta_mejorada`: "Dime los eventos de orden público ocurridos en los últimos 30 días en el departamento del Cauca."
+  Ejemplo: usuario dice "Hostigamientos" → `consulta_mejorada`: "Dime los hostigamientos registrados en el último año en el Cauca."
+  Si la consulta es clara y no es ambigua, `consulta_mejorada` debe ser null.
+- **NO sugieras consulta mejorada** cuando la pregunta sea un ranking o listado de municipios
+  (ej. "municipios con más...", "¿Cuáles son los municipios..."). En esos casos la consulta original es válida.
 - Si la pregunta es saludo o no requiere datos del grafo, devuelve JSON válido con intencion "resumen",
-  aclaracion_requerida: false, y categoria null.
+  consulta_mejorada: null, y categoria null.
 - perfil_usuario: si el usuario pide datos técnicos (veredas, cortes exactos), "tecnico"; si no, "no_tecnico".
+- Para referencias temporales relativas ("hoy", "ayer", "esta semana", "semana pasada", "este mes", "mes pasado") usa los valores exactos: "hoy", "ayer", "semana_pasada", "este_mes", "mes_pasado". El sistema las resolverá automáticamente a la fecha real antes de consultar Neo4j.
+- Conceptos cruzados: si el usuario pregunta por "cilindro bomba" o "cilindros bomba", esto puede aparecer en novedades de categoría "Atentado Terrorista" (los que explotaron) o "Hallazgo de Material" (los que no explotaron). Guarda el concepto en `filtros_adicionales: {"concepto": "cilindro_bomba"}` y deja `categoria` como null para que la consulta abarque ambas categorías.
 """.strip()
 
 
@@ -70,7 +76,16 @@ Reglas de seguridad (obligatorias):
 - Si rol_usuario es "Visitante", excluye siempre filas con novedades privadas:
   añade en el MATCH de NOVEDAD la condición AND coalesce(n.visibilidad, 'Público') = 'Público'
   (o equivalente que excluya "Privado").
-- Usa parámetros ($nombre, fechas como date('YYYY-MM-DD')) en params cuando corresponda.
+- Usa parámetros ($nombre, etc.) en el diccionario `params` cuando corresponda.
+- **CRÍTICO — fechas:** La propiedad `n.fecha` es de tipo `DATE` en Neo4j.
+  - En `params`, la fecha debe ser un STRING ISO: `"YYYY-MM-DD"` (ej. `"2024-01-01"`).
+  - En la consulta Cypher, DEBES envolver el parámetro con la función `date()`:
+    `WHERE n.fecha >= date($desde) AND n.fecha <= date($hasta)`.
+  - NUNCA compares `n.fecha >= $desde` directamente, porque compara DATE contra STRING y retorna 0 resultados.
+- Si `filtros_adicionales` contiene `"concepto": "cilindro_bomba"`, la consulta debe buscar la palabra "cilindro" en la descripción de la novedad:
+  `WHERE toLower(n.descripcion) CONTAINS "cilindro"`. No restrinjas por categoría en ese caso, porque el concepto aparece tanto en "Atentado Terrorista" (explosionaron) como en "Hallazgo de Material" (no explosionaron).
+- Si la intención es un ranking/listado de municipios (ej. "municipios con más..."), usa el patrón:
+  `MATCH (m:MUNICIPIO)-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD)` y agrupa por `m.nombre`. No filtres por un municipio específico.
 
 Esquema:
 {GRAPH_SCHEMA_FOR_LLM}
@@ -124,9 +139,9 @@ class LocalGraphChat:
     ) -> None:
         self.graph_client = graph_client or Neo4jGraphClient()
         self.ollama_client = ollama_client or OllamaClient()
-        self.model_interpreter = OLLAMA_MODEL_INTERPRETER
-        self.model_consultant = OLLAMA_MODEL_CONSULTANT
-        self.model_redactor = OLLAMA_MODEL_REDACTOR
+        self.model_interpreter = MODEL_INTERPRETER
+        self.model_consultant = MODEL_CONSULTANT
+        self.model_redactor = MODEL_REDACTOR
 
     def check_connections(self) -> None:
         self.graph_client.ping()
@@ -174,9 +189,12 @@ class LocalGraphChat:
             perfil = "no_tecnico"
         intencion["perfil_usuario"] = perfil
 
-        if intencion.get("aclaracion_requerida"):
-            msg = intencion.get("pregunta_aclaracion") or (
-                "¿Podrías precisar municipio o período de la consulta?"
+        consulta_mejorada = intencion.get("consulta_mejorada")
+        if consulta_mejorada:
+            msg = (
+                f"Tu consulta es un poco amplia. Prueba con esta versión más concreta:\n\n"
+                f"**{consulta_mejorada}**\n\n"
+                f"Si prefieres, escríbela en el chat y la ejecuto."
             )
             return ChatTurn(
                 user_message=question,
@@ -282,6 +300,15 @@ class LocalGraphChat:
             categoria = "Secuestro"
         elif "protest" in ql or "bloqueo" in ql:
             categoria = "Acción de Protesta"
+        elif "atentado" in ql:
+            categoria = "Atentado Terrorista"
+        elif "hallazgo" in ql:
+            categoria = "Hallazgo de Material"
+
+        # Filtros adicionales (conceptos cruzados que no son categorías exactas)
+        filtros_adicionales: dict[str, Any] = {}
+        if "cilindro" in ql or "cilindros" in ql:
+            filtros_adicionales["concepto"] = "cilindro_bomba"
 
         if any(k in ql for k in ["cuánt", "cuanto", "cuantos", "total", "número", "numero"]):
             intencion = "conteo"
@@ -311,15 +338,59 @@ class LocalGraphChat:
         if year_match:
             yy = year_match.group(1)
             periodo = {"desde": f"{yy}-01-01", "hasta": f"{yy}-12-31"}
+        elif "ayer" in ql:
+            periodo = {"desde": None, "hasta": "ayer"}
         elif "hoy" in ql or "actual" in ql:
             periodo = {"desde": None, "hasta": "hoy"}
+        elif "semana pasada" in ql:
+            periodo = {"desde": "semana_pasada", "hasta": None}
+        elif "este mes" in ql or "mes actual" in ql:
+            periodo = {"desde": "este_mes", "hasta": None}
+        elif "mes pasado" in ql:
+            periodo = {"desde": "mes_pasado", "hasta": None}
 
-        aclaracion = ubicacion["nombre"] is None and intencion in {"conteo", "ranking", "listado"}
-        pregunta = (
-            "¿En qué municipio o zona te interesa consultar?"
-            if aclaracion
-            else None
+        # No pedir aclaración de ubicación si la pregunta misma es sobre
+        # listar/ranquear municipios (ej. "municipios con más...")
+        es_consulta_de_municipios = bool(
+            re.search(r"\b(municipios?\s+(con|de|en|que|donde)|top\s+\d+\s+municipios?)\b", ql)
         )
+        # Una consulta es ambigua si:
+        # 1. Es listado/ranking/conteo sin ubicación específica, o
+        # 2. Es solo una categoría suelta sin intención clara (ej. "hostigamientos"), o
+        # 3. Es una consulta muy genérica sin filtros (ej. "qué pasó", "novedades")
+        es_ambigua = (
+            (
+                ubicacion["nombre"] is None
+                and intencion in {"conteo", "ranking", "listado"}
+            )
+            or (
+                intencion == "resumen"
+                and categoria is not None
+                and ubicacion["nombre"] is None
+                and periodo["desde"] is None
+                and periodo["hasta"] is None
+            )
+            or (
+                intencion == "resumen"
+                and categoria is None
+                and any(k in ql for k in ["que paso", "novedades", "eventos", "sucedio", "paso"])
+            )
+        ) and not es_consulta_de_municipios
+
+        consulta_mejorada = None
+        if es_ambigua:
+            # Construir sugerencia basada en la consulta original
+            sugerencia = "Dime "
+            if categoria:
+                sugerencia += f"los {categoria.lower()}s"
+            else:
+                sugerencia += "los eventos de orden público"
+            if year_match:
+                sugerencia += f" de {year_match.group(1)}"
+            else:
+                sugerencia += " del último año"
+            sugerencia += " en el departamento del Cauca."
+            consulta_mejorada = sugerencia
 
         return self._normalize_intencion(
             {
@@ -328,9 +399,8 @@ class LocalGraphChat:
                 "ubicacion": ubicacion,
                 "periodo": periodo,
                 "perfil_usuario": "no_tecnico",
-                "filtros_adicionales": {},
-                "aclaracion_requerida": aclaracion,
-                "pregunta_aclaracion": pregunta,
+                "filtros_adicionales": filtros_adicionales,
+                "consulta_mejorada": consulta_mejorada,
             }
         )
 
@@ -343,8 +413,42 @@ class LocalGraphChat:
         out.setdefault("periodo", {"desde": None, "hasta": None})
         out.setdefault("perfil_usuario", "no_tecnico")
         out.setdefault("filtros_adicionales", {})
-        out.setdefault("aclaracion_requerida", False)
-        out.setdefault("pregunta_aclaracion", None)
+        out.setdefault("consulta_mejorada", None)
+        # Retrocompatibilidad: eliminar campos antiguos si llegan de un LLM antiguo
+        out.pop("aclaracion_requerida", None)
+        out.pop("pregunta_aclaracion", None)
+        return out
+
+    @staticmethod
+    def _resolve_temporal_references(intencion: dict[str, Any]) -> dict[str, Any]:
+        """Resuelve referencias temporales relativas a fechas ISO concretas."""
+        out = dict(intencion)
+        periodo = dict(out.get("periodo") or {})
+        hoy = date.today()
+
+        def _resolve(val):
+            if val == "hoy":
+                return hoy.isoformat()
+            if val == "ayer":
+                return (hoy - timedelta(days=1)).isoformat()
+            if val == "semana_pasada":
+                # lunes de la semana pasada
+                lunes_esta_semana = hoy - timedelta(days=hoy.weekday())
+                return (lunes_esta_semana - timedelta(days=7)).isoformat()
+            if val == "este_mes":
+                return hoy.replace(day=1).isoformat()
+            if val == "mes_pasado":
+                if hoy.month == 1:
+                    return hoy.replace(year=hoy.year - 1, month=12, day=1).isoformat()
+                return hoy.replace(month=hoy.month - 1, day=1).isoformat()
+            return val
+
+        if periodo.get("desde"):
+            periodo["desde"] = _resolve(periodo["desde"])
+        if periodo.get("hasta"):
+            periodo["hasta"] = _resolve(periodo["hasta"])
+
+        out["periodo"] = periodo
         return out
 
     def _agente2_cypher(
@@ -353,6 +457,7 @@ class LocalGraphChat:
         intencion: dict[str, Any],
         rol_usuario: str,
     ) -> dict[str, Any]:
+        intencion = self._resolve_temporal_references(intencion)
         hoy = date.today().isoformat()
         payload = json.dumps(intencion, ensure_ascii=False)
         user_msg = (
