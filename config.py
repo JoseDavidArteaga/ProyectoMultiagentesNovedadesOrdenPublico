@@ -27,6 +27,13 @@ OLLAMA_TIMEOUT_SECONDS: int = int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "300"
 OLLAMA_NUM_PREDICT_JSON: int = int(os.environ.get("OLLAMA_NUM_PREDICT_JSON", "220"))
 OLLAMA_NUM_PREDICT_TEXT: int = int(os.environ.get("OLLAMA_NUM_PREDICT_TEXT", "420"))
 
+# ─── Modelos genéricos (usados por el pipeline de agentes) ──────────────────
+# Se definen explícitamente en .env según el proveedor activo (Ollama o Groq).
+# Retrocompatibilidad: si no están definidos, usan los modelos de Ollama.
+MODEL_INTERPRETER: str = os.environ.get("MODEL_INTERPRETER", OLLAMA_MODEL_INTERPRETER)
+MODEL_CONSULTANT: str = os.environ.get("MODEL_CONSULTANT", OLLAMA_MODEL_CONSULTANT)
+MODEL_REDACTOR: str = os.environ.get("MODEL_REDACTOR", OLLAMA_MODEL_REDACTOR)
+
 # ─── Groq (API compatible con OpenAI) ────────────────────────────────────────
 GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "")
 GROQ_BASE_URL: str = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
