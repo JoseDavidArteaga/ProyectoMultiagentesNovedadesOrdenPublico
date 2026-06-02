@@ -424,7 +424,7 @@ for msg in st.session_state.messages:
                 with st.expander("⬡ Ver consulta Cypher ejecutada"):
                     st.code(msg["cypher"], language="cypher")
             if msg.get("rows"):
-                with st.expander(f"⬡ Ver datos crudos · {len(msg['rows'])} registros"):
+                with st.expander(f"⬡ Ver datos · {len(msg['rows'])} registros"):
                     st.json(msg["rows"])
             if msg.get("intencion"):
                 with st.expander("⬡ JSON de intención (Agente 1)"):
@@ -465,7 +465,7 @@ def process_query(prompt: str):
                         with st.expander("⬡ Ver consulta Cypher ejecutada"):
                             st.code(result.cypher, language="cypher")
                     if result.rows:
-                        with st.expander(f"⬡ Ver datos crudos · {len(result.rows)} registros"):
+                        with st.expander(f"⬡ Ver datos · {len(result.rows)} registros"):
                             st.json(result.rows)
                     if result.intencion_json:
                         with st.expander("⬡ JSON de intención (Agente 1)"):

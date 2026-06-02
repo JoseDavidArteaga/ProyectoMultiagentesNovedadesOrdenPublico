@@ -45,6 +45,8 @@ Reglas:
   Si la consulta es clara y no es ambigua, `consulta_mejorada` debe ser null.
 - **NO sugieras consulta mejorada** cuando la pregunta sea un ranking o listado de municipios
   (ej. "municipios con más...", "¿Cuáles son los municipios..."). En esos casos la consulta original es válida.
+- **Ranking por mes sin año:** Si el usuario pide un ranking o comparación por mes (ej. "¿En qué mes hubo más...?") pero NO especifica un año, la consulta es ambigua. Devuelve `consulta_mejorada` pidiendo que especifique el año:
+  Ejemplo: usuario dice "¿En qué mes se registraron más ataques con drones?" → `consulta_mejorada`: "¿De qué año te interesa consultar? Especifica el año para poder comparar los meses. Por ejemplo: 'ataques con drones en 2024'."
 - Si la pregunta es saludo o no requiere datos del grafo, devuelve JSON válido con intencion "resumen",
   consulta_mejorada: null, y categoria null.
 - perfil_usuario: si el usuario pide datos técnicos (veredas, cortes exactos), "tecnico"; si no, "no_tecnico".
@@ -82,10 +84,15 @@ Reglas de seguridad (obligatorias):
   - En la consulta Cypher, DEBES envolver el parámetro con la función `date()`:
     `WHERE n.fecha >= date($desde) AND n.fecha <= date($hasta)`.
   - NUNCA compares `n.fecha >= $desde` directamente, porque compara DATE contra STRING y retorna 0 resultados.
+  - Para extraer componentes de una fecha DATE, usa notación de punto (propiedad), NO funciones:
+    - Año: `n.fecha.year` (NO `year(n.fecha)`)
+    - Mes: `n.fecha.month` (NO `month(n.fecha)`)
+    - Día: `n.fecha.day` (NO `day(n.fecha)`)
 - Si `filtros_adicionales` contiene `"concepto": "cilindro_bomba"`, la consulta debe buscar la palabra "cilindro" en la descripción de la novedad:
   `WHERE toLower(n.descripcion) CONTAINS "cilindro"`. No restrinjas por categoría en ese caso, porque el concepto aparece tanto en "Atentado Terrorista" (explosionaron) como en "Hallazgo de Material" (no explosionaron).
 - Si la intención es un ranking/listado de municipios (ej. "municipios con más..."), usa el patrón:
   `MATCH (m:MUNICIPIO)-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD)` y agrupa por `m.nombre`. No filtres por un municipio específico.
+- **CRÍTICO — tipo de nodo:** Para obtener el tipo/label de un nodo en Neo4j, usa la función `labels(n)` que devuelve una lista de strings. El primer elemento es el tipo principal: `labels(n)[0]` (NO `tipo(n)`).
 
 Esquema:
 {GRAPH_SCHEMA_FOR_LLM}
@@ -354,6 +361,13 @@ class LocalGraphChat:
         es_consulta_de_municipios = bool(
             re.search(r"\b(municipios?\s+(con|de|en|que|donde)|top\s+\d+\s+municipios?)\b", ql)
         )
+        # Detectar ranking por mes sin año específico
+        es_ranking_por_mes_sin_ano = (
+            intencion in {"ranking", "comparacion"}
+            and ("mes" in ql or "month" in ql)
+            and not year_match
+        )
+
         # Una consulta es ambigua si:
         # 1. Es listado/ranking/conteo sin ubicación específica, o
         # 2. Es solo una categoría suelta sin intención clara (ej. "hostigamientos"), o
@@ -378,7 +392,12 @@ class LocalGraphChat:
         ) and not es_consulta_de_municipios
 
         consulta_mejorada = None
-        if es_ambigua:
+        if es_ranking_por_mes_sin_ano:
+            consulta_mejorada = (
+                f"¿De qué año te interesa consultar? Especifica el año para poder "
+                f"comparar los meses. Por ejemplo: '{categoria.lower() if categoria else 'eventos'} en 2024'."
+            )
+        elif es_ambigua:
             # Construir sugerencia basada en la consulta original
             sugerencia = "Dime "
             if categoria:
