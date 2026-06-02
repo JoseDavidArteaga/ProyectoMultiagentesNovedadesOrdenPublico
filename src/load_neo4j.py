@@ -6,7 +6,16 @@ from pathlib import Path
 
 from neo4j import GraphDatabase
 
-from config import NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_SEED_FILE, NEO4J_URI, NEO4J_USERNAME
+from config import (
+    NEO4J_DATABASE,
+    NEO4J_PASSWORD,
+    NEO4J_SEED_FILE,
+    NEO4J_URI,
+    NEO4J_USERNAME,
+    NEO4J_DATA_FILE_1,
+    NEO4J_DATA_FILE_2,
+    NEO4J_DATA_FILE_3,
+)
 
 
 def split_cypher_statements(text: str) -> list[str]:
@@ -34,13 +43,26 @@ def split_cypher_statements(text: str) -> list[str]:
 
 
 def load_seed_file(seed_file: str = NEO4J_SEED_FILE) -> int:
-    path = Path(seed_file)
-    if not path.exists():
-        raise FileNotFoundError(f"No existe el archivo Cypher: {path}")
+    # Mantener compatibilidad: esta función delega en load_cypher_file
+    return load_cypher_file(seed_file)
 
-    statements = split_cypher_statements(path.read_text(encoding="utf-8"))
+
+def load_cypher_file(file_path: str) -> int:
+    """Carga y ejecuta todas las sentencias Cypher en `file_path`.
+
+    Devuelve el número de sentencias ejecutadas. Si el archivo no existe,
+    devuelve 0 (sin levantar excepción) para permitir continuar con otros archivos.
+    """
+    path = Path(file_path)
+    if not path.exists():
+        print(f"Aviso: no existe el archivo Cypher: {path}")
+        return 0
+
+    text = path.read_text(encoding="utf-8")
+    statements = split_cypher_statements(text)
     if not statements:
-        raise ValueError(f"No se encontraron sentencias en {path}")
+        print(f"Aviso: no se encontraron sentencias en {path}")
+        return 0
 
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
     try:
@@ -54,5 +76,17 @@ def load_seed_file(seed_file: str = NEO4J_SEED_FILE) -> int:
 
 
 if __name__ == "__main__":
-    total = load_seed_file()
+    total = 0
+
+    # Ejecutar archivo seed principal
+    total += load_seed_file()
+
+    # Ejecutar archivos de datos adicionales definidos en config
+    data_files = [NEO4J_DATA_FILE_1, NEO4J_DATA_FILE_2, NEO4J_DATA_FILE_3]
+    for df in data_files:
+        if not df:
+            continue
+        executed = load_cypher_file(df)
+        total += executed
+
     print(f"Carga completada. Sentencias ejecutadas: {total}")

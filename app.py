@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 import streamlit as st
@@ -274,6 +275,7 @@ if "chip_query" not in st.session_state:
 # Perfil / rol: valores por defecto (los selectbox usan la misma clave en session_state)
 st.session_state.setdefault("perfil_ui", "no_tecnico")
 st.session_state.setdefault("rol_usuario", "Operador")
+st.session_state.setdefault("session_id", uuid.uuid4().hex)
 
 # ── Connection check ──────────────────────────────────────────────────────────
 client, init_err = get_client()
@@ -457,6 +459,7 @@ def process_query(prompt: str):
                         prompt,
                         perfil_ui=st.session_state.perfil_ui,
                         rol_usuario=st.session_state.rol_usuario,
+                        session_id=st.session_state.session_id,
                         progress_callback=on_progress,
                     )
                     progress_box.empty()

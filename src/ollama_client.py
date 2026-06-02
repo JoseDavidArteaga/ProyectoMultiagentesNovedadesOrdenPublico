@@ -46,6 +46,33 @@ class OllamaClient:
         response = requests.get(f"{self.base_url}/api/tags", timeout=(10, self.timeout_seconds))
         response.raise_for_status()
 
+    def _available_models(self) -> list[str]:
+        response = requests.get(f"{self.base_url}/api/tags", timeout=(10, self.timeout_seconds))
+        response.raise_for_status()
+        payload = response.json()
+        models: list[str] = []
+        for item in payload.get("models", []):
+            name = item.get("name")
+            if name:
+                models.append(name)
+        return models
+
+    def _resolve_model(self, requested_model: str | None) -> str:
+        candidate = (requested_model or self.model).strip()
+        if LLM_PROVIDER == "groq":
+            return candidate
+
+        available_models = self._available_models()
+        if not available_models:
+            raise RuntimeError(
+                "Ollama está activo, pero no hay modelos instalados. Ejecuta `ollama list` y descarga uno con `ollama pull`."
+            )
+
+        if candidate in available_models:
+            return candidate
+
+        return available_models[0]
+
     def chat(
         self,
         messages: list[dict[str, str]],
@@ -77,8 +104,9 @@ class OllamaClient:
                 merged_options: dict[str, Any] = {"temperature": self.temperature}
                 if options:
                     merged_options.update(options)
+                resolved_model = self._resolve_model(model)
                 payload = {
-                    "model": model or self.model,
+                    "model": resolved_model,
                     "messages": messages,
                     "stream": False,
                     "options": merged_options,
@@ -108,6 +136,12 @@ class OllamaClient:
         except requests.exceptions.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else "?"
             body = (exc.response.text[:240] if exc.response is not None else "").strip()
+            if status == 404 and "model" in body.lower():
+                available = ", ".join(self._available_models())
+                if available:
+                    raise RuntimeError(
+                        f"El modelo solicitado no existe en Ollama. Modelos disponibles: {available}."
+                    ) from exc
             raise RuntimeError(f"Ollama respondió HTTP {status}. Detalle: {body}") from exc
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(f"Error de red al llamar Ollama: {exc}") from exc

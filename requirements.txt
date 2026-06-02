@@ -22,3 +22,4 @@ python-Levenshtein>=0.25.0  # acelera thefuzz
 python-dotenv>=1.0.0      # carga de variables de entorno (.env)
 tqdm>=4.66.0              # barras de progreso
 pydantic>=2.7.0           # validación de schemas de datos
+langfuse>=2.0.0           # observabilidad y evaluación de agentes

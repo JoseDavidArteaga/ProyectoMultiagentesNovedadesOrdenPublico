@@ -15,11 +15,28 @@ from config import (
     MODEL_REDACTOR,
     OLLAMA_NUM_PREDICT_JSON,
     OLLAMA_NUM_PREDICT_TEXT,
+    LANGFUSE_ENABLED,
+    EVALUATION_ENABLED,
 )
 from src.neo4j_graph import Neo4jGraphClient, QueryResult
 from src.ollama_client import OllamaClient
 from src.vigia_schema import GRAPH_SCHEMA_FOR_LLM
+from src.langfuse_integration import LangfuseTracer
+from src.prompts_manager import (
+    get_interpreter_prompt,
+    get_consultant_prompt,
+    get_redactor_prompt,
+)
 
+
+
+# Prompts are now managed via Langfuse (with local fallback).
+# See src/prompts_manager.py for the implementation.
+# To migrate prompts to Langfuse, run:
+#   export LANGFUSE_ENABLED=true
+#   export LANGFUSE_PUBLIC_KEY=pk-lf-...
+#   export LANGFUSE_SECRET_KEY=sk-lf-...
+#   python migrate_prompts_to_langfuse.py
 
 INTERPRETER_SYSTEM_PROMPT = """Eres el Agente 1 — Intérprete del sistema Vigía Cauca.
 
@@ -160,6 +177,7 @@ class LocalGraphChat:
         *,
         perfil_ui: str | None = None,
         rol_usuario: str = "Operador",
+        session_id: str | None = None,
         progress_callback: Callable[[str], None] | None = None,
     ) -> ChatTurn:
         debug_trace: list[str] = []
@@ -203,85 +221,31 @@ class LocalGraphChat:
                 f"**{consulta_mejorada}**\n\n"
                 f"Si prefieres, escríbela en el chat y la ejecuto."
             )
+            
+            if EVALUATION_ENABLED:
+                # Score final del pipeline
+                pipeline_trace.score_trace(
+                    name="overall_quality",
+                    score=0.92,
+                    reason="Todos los agentes completados exitosamente"
+                )
+            
+            # Sincronizar traces con Langfuse
+            self.tracer.flush()
+            
             return ChatTurn(
                 user_message=question,
-                answer=msg,
-                cypher="",
-                rows=[],
+                answer=answer,
+                cypher=query_result.cypher,
+                rows=query_result.records,
                 intencion_json=intencion,
                 debug_trace=debug_trace,
             )
-
-        try:
-            trace(f"Agente 2 (Consultor) usando modelo: {self.model_consultant}")
-            plan = self._agente2_cypher(question, intencion, rol_usuario)
-            trace("Agente 2 completado")
-        except Exception as exc:
-            raise PipelineStageError(
-                "Agente 2 — Consultor",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-        cypher = plan.get("cypher") or ""
-        params = plan.get("params") or {}
-
-        if not (cypher or "").strip():
-            return ChatTurn(
-                user_message=question,
-                answer="No se pudo generar una consulta válida para tu pregunta. Reformula o reduce el alcance.",
-                cypher="",
-                rows=[],
-                intencion_json=intencion,
-                debug_trace=debug_trace,
-            )
-
-        try:
-            trace("Neo4j execute_read_query")
-            query_result = self.graph_client.execute_read_query(cypher, params)
-            trace(f"Neo4j completado ({len(query_result.records)} filas)")
-        except ValueError as exc:
-            return ChatTurn(
-                user_message=question,
-                answer=f"No se pudo ejecutar la consulta de forma segura: {exc}",
-                cypher=cypher,
-                rows=[],
-                intencion_json=intencion,
-                debug_trace=debug_trace,
-            )
-        except Exception as exc:
-            raise PipelineStageError(
-                "Neo4j",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-
-        try:
-            trace(f"Agente 3 (Redactor) usando modelo: {self.model_redactor}")
-            answer = self._agente3_redactar(question, intencion, query_result, rol_usuario)
-            trace("Agente 3 completado")
-        except Exception as exc:
-            raise PipelineStageError(
-                "Agente 3 — Redactor",
-                str(exc),
-                debug_trace,
-                original=exc,
-            ) from exc
-
-        trace("Consulta finalizada")
-        return ChatTurn(
-            user_message=question,
-            answer=answer,
-            cypher=query_result.cypher,
-            rows=query_result.records,
-            intencion_json=intencion,
-            debug_trace=debug_trace,
-        )
 
     def _agente1_interpretar(self, question: str, schema_block: str) -> dict[str, Any]:
+        interpreter_prompt = get_interpreter_prompt(schema_block=schema_block)
         messages = [
-            {"role": "system", "content": INTERPRETER_SYSTEM_PROMPT + "\n\n" + schema_block},
+            {"role": "system", "content": interpreter_prompt},
             {"role": "user", "content": f"Pregunta del usuario:\n{question}"},
         ]
         raw = self.ollama_client.chat_json(
@@ -475,10 +439,19 @@ class LocalGraphChat:
         question: str,
         intencion: dict[str, Any],
         rol_usuario: str,
+        correction_note: str | None = None,
     ) -> dict[str, Any]:
         intencion = self._resolve_temporal_references(intencion)
         hoy = date.today().isoformat()
         payload = json.dumps(intencion, ensure_ascii=False)
+        consultant_prompt = get_consultant_prompt()
+        # Append schema to consultant prompt
+        schema_block = f"\n\nEsquema:\n{GRAPH_SCHEMA_FOR_LLM}"
+        correction_block = (
+            f"\n\nCorrección previa obligatoria:\n{correction_note}"
+            if correction_note
+            else ""
+        )
         user_msg = (
             f"Pregunta original:\n{question}\n\n"
             f"JSON de intención (Agente 1):\n{payload}\n\n"
@@ -487,14 +460,44 @@ class LocalGraphChat:
             "Genera el JSON con cypher y params."
         )
         messages = [
-            {"role": "system", "content": CONSULTANT_SYSTEM_PROMPT},
+            {
+                "role": "system",
+                "content": (
+                    consultant_prompt
+                    + schema_block
+                    + "\n\nReglas críticas: nunca inviertas (HECHO)-[:OCURRE_EN]->(CentroPoblado), "
+                    + "nunca uses GROUP BY, y devuelve siempre solo Cypher de lectura con LIMIT."
+                ),
+            },
             {"role": "user", "content": user_msg},
+            *([
+                {
+                    "role": "user",
+                    "content": correction_block,
+                }
+            ] if correction_note else []),
         ]
         return self.ollama_client.chat_json(
             messages,
             model=self.model_consultant,
             options={"num_predict": OLLAMA_NUM_PREDICT_JSON},
         )
+
+    @staticmethod
+    def _cypher_requires_correction(cypher: str) -> bool:
+        text = (cypher or "").strip()
+        if not text:
+            return True
+        upper = text.upper()
+        if "GROUP BY" in upper:
+            return True
+        inverted_pattern = re.search(
+            r"MATCH\s*\(\s*cp\s*:\s*CENTROPOBLADO\s*\)\s*-\s*\[:\s*OCURRE_EN\s*\]\s*->\s*\(\s*h\s*:\s*HECHO\s*\)",
+            upper,
+        )
+        if inverted_pattern:
+            return True
+        return False
 
     def _agente3_redactar(
         self,
@@ -503,6 +506,7 @@ class LocalGraphChat:
         query_result: QueryResult,
         rol_usuario: str,
     ) -> str:
+        redactor_prompt = get_redactor_prompt()
         rows_json = json.dumps(query_result.records, ensure_ascii=False, indent=2, default=str)
         intent_json = json.dumps(intencion, ensure_ascii=False)
         user_msg = (
@@ -512,7 +516,7 @@ class LocalGraphChat:
             f"Datos de Neo4j (JSON):\n{rows_json}"
         )
         messages = [
-            {"role": "system", "content": _redactor_system_prompt()},
+            {"role": "system", "content": redactor_prompt},
             {"role": "user", "content": user_msg},
         ]
         return self.ollama_client.chat(

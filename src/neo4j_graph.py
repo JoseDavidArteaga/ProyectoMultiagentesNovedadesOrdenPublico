@@ -65,14 +65,14 @@ class Neo4jGraphClient:
 
     def examples_description(self) -> str:
         return (
-            "Ejemplo 1: MATCH (m:MUNICIPIO {nombre: $municipio})-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD) "
-            "RETURN n.id AS id, n.categoria AS categoria, n.fecha AS fecha, labels(lugar)[0] AS nivel, lugar.nombre AS lugar "
-            "ORDER BY n.fecha DESC LIMIT 10\n"
-            "Ejemplo 2: MATCH (m:MUNICIPIO)-[:CONTIENE*1..4]->(lugar)<-[:OCURRE_EN]-(n:NOVEDAD) "
-            "RETURN m.nombre AS municipio, count(DISTINCT n) AS total_novedades ORDER BY total_novedades DESC LIMIT 5\n"
-            "Ejemplo 3: MATCH (a:ACTOR)-[:PARTICIPA_EN]->(n:NOVEDAD)-[:OCURRE_EN]->(lugar) "
-            "RETURN a.nombre AS actor, n.categoria AS categoria, lugar.nombre AS lugar, n.fecha AS fecha "
-            "ORDER BY n.fecha DESC LIMIT 10"
+            "Ejemplo 1: MATCH (h:HECHO)-[:OCURRE_EN]->(cp:CentroPoblado {nombre_municipio: $municipio}) "
+            "RETURN h.id AS id, h.fecha AS fecha, h.descripcion AS descripcion, cp.nombre AS lugar, cp.nombre_municipio AS municipio "
+            "ORDER BY h.fecha DESC LIMIT 10\n"
+            "Ejemplo 2: MATCH (h:HECHO)-[:ES_DE]->(cat:Categoria) "
+            "RETURN cat.nombre AS categoria, count(h) AS total ORDER BY total DESC LIMIT 5\n"
+            "Ejemplo 3: MATCH (h:HECHO)-[:GENERA]->(af:Afectacion) "
+            "RETURN h.descripcion AS descripcion, af.nombre AS afectacion, count(*) AS cantidad "
+            "ORDER BY cantidad DESC LIMIT 10"
         )
 
     @staticmethod
@@ -84,6 +84,14 @@ class Neo4jGraphClient:
         upper = text.upper()
         if "RETURN" not in upper:
             raise ValueError("La consulta debe ser de solo lectura y terminar en RETURN.")
+
+        if "GROUP BY" in upper:
+            raise ValueError("Cypher no usa GROUP BY; agrupa con WITH antes de ORDER BY y RETURN.")
+
+        if "MATCH (CP:CENTROPOBLADO)-[:OCURRE_EN]->(H:HECHO)" in upper:
+            raise ValueError(
+                "La dirección de OCURRE_EN está invertida. Usa MATCH (h:HECHO)-[:OCURRE_EN]->(cp:CentroPoblado)."
+            )
 
         for keyword in FORBIDDEN_KEYWORDS:
             if keyword in upper:

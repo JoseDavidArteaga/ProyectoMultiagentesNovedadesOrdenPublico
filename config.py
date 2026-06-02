@@ -10,9 +10,6 @@ from dotenv import load_dotenv
 load_dotenv()  # carga .env si existe (entorno local)
 
 
-# ─── OpenAI ──────────────────────────────────────────────────────────────────
-OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
-
 # ─── Proveedor LLM ────────────────────────────────────────────────────────────
 # "ollama" (local) o "groq" (cloud)
 LLM_PROVIDER: str = os.environ.get("LLM_PROVIDER", "ollama").strip().lower()
@@ -44,34 +41,16 @@ GROQ_BASE_URL: str = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/opena
 # ─── Neo4j local ─────────────────────────────────────────────────────────────
 NEO4J_URI: str = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USERNAME: str = os.environ.get("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD: str = os.environ.get("NEO4J_PASSWORD", "")
+NEO4J_PASSWORD: str = os.environ.get("NEO4J_PASSWORD", "neo4j2026")
 NEO4J_DATABASE: str = os.environ.get("NEO4J_DATABASE", "neo4j")
 NEO4J_MAX_RESULTS: int = int(os.environ.get("NEO4J_MAX_RESULTS", "100"))
 
-# Modelos
-EMBEDDING_MODEL: str = "text-embedding-3-large"
-GENERATOR_MODEL: str = "gpt-4.1"
-VERIFIER_MODEL: str = "gpt-4o-mini"
-
-# ─── Agente 1 — Recuperador ───────────────────────────────────────────────────
-TOP_K: int = 5                          # documentos recuperados por consulta
-VECTOR_STORE_BACKEND: str = "chroma"   # "chroma" | "faiss"
-CHROMA_PERSIST_DIR: str = "data/chroma_db"
-
-# ─── Agente 2 — Generador ─────────────────────────────────────────────────────
-GENERATOR_MAX_TOKENS: int = 1500
-GENERATOR_TEMPERATURE: float = 0.2     # bajo para reportes institucionales
-
-# ─── Agente 3 — Verificador ───────────────────────────────────────────────────
-VERIFIER_MAX_TOKENS: int = 800
-VERIFIER_TEMPERATURE: float = 0.0      # determinista para validación
-FAITHFULNESS_THRESHOLD: float = 0.85   # umbral mínimo aceptable
-
 # ─── Datos ────────────────────────────────────────────────────────────────────
 RAW_DATA_DIR: str = "data/raw"
-PROCESSED_DATA_DIR: str = "data/processed"
-PROCESSED_DATA_FILE: str = "data/processed/hechos_orden_publico_2024.csv"
 NEO4J_SEED_FILE: str = os.environ.get("NEO4J_SEED_FILE", "data/raw/vigia_cauca_neo4j.cypher")
+NEO4J_DATA_FILE_1: str = os.environ.get("NEO4J_DATA_FILE_1", "data/raw/new_data.cypher")
+NEO4J_DATA_FILE_2: str = os.environ.get("NEO4J_DATA_FILE_2", "data/raw/new_data_2.cypher")
+NEO4J_DATA_FILE_3: str = os.environ.get("NEO4J_DATA_FILE_3", "data/raw/new_data_3.cypher")
 
 # ─── Municipios del Cauca (lista de referencia para Fuzzy Matching) ───────────
 MUNICIPIOS_CAUCA: list[str] = [
@@ -85,23 +64,8 @@ MUNICIPIOS_CAUCA: list[str] = [
     "Totoró", "Villa Rica",
 ]
 
-# ─── Categorías de hechos (Excel / legacy — hojas y códigos internos) ────────
-CATEGORIAS_HECHO: list[str] = [
-    "ENFRENTAMIENTO",
-    "CONFRONTACION",
-    "HOSTIGAMIENTO",
-    "ATAQUE_CON_DRONES",
-    "BLOQUEO_VIAL",
-    "DESPLAZAMIENTO_FORZADO",
-    "HOMICIDIO",
-    "SECUESTRO",
-    "RETEN_ILEGAL",
-    "PROTESTA_SOCIAL",
-    "OTRO",
-]
-
-# ─── Categorías NOVEDAD en Neo4j (CONTEXTO §3.1 — valores en la propiedad categoria)
-CATEGORIAS_NOVEDAD_NEO4J: list[str] = [
+# ─── Categorías HECHO en Neo4j (CONTEXTO §3.1 — valores en la propiedad categoria)
+CATEGORIAS_HECHO_NEO4J: list[str] = [
     "Enfrentamiento",
     "Hostigamiento",
     "Atentado Terrorista",
@@ -114,3 +78,21 @@ CATEGORIAS_NOVEDAD_NEO4J: list[str] = [
     "Hallazgo de Material",
     "Otro",
 ]
+
+# ─── Langfuse (Observabilidad y evaluación de agentes) ──────────────────────
+LANGFUSE_ENABLED: bool = os.environ.get("LANGFUSE_ENABLED", "false").lower() == "true"
+# IMPORTANT: Do not store Langfuse keys in the repository. Set these via environment variables or a local .env file.
+LANGFUSE_PUBLIC_KEY: str = os.environ.get("LANGFUSE_PUBLIC_KEY", "pk-lf-5c6cc46f-0bac-42a6-9b8b-6d3439649a94")
+LANGFUSE_SECRET_KEY: str = os.environ.get("LANGFUSE_SECRET_KEY", "sk-lf-04703f39-081f-43f5-b43b-52186763f81a")
+# Default host can point to cloud or a self-hosted instance. Leave empty to use SDK default.
+LANGFUSE_HOST: str = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
+# Label used to fetch the active prompt versions from Langfuse.
+LANGFUSE_PROMPT_LABEL: str = os.environ.get("LANGFUSE_PROMPT_LABEL", "Testing_1")
+
+# Configuración de evaluación
+EVALUATION_ENABLED: bool = os.environ.get("EVALUATION_ENABLED", "true").lower() == "true"
+EVALUATION_MODELS: dict[str, str] = {
+    "faithfulness": "¿El informe está respaldado por los datos?",
+    "coherence": "¿El informe es coherente y bien estructurado?",
+    "completeness": "¿El informe cubre todos los aspectos de la pregunta?",
+}
